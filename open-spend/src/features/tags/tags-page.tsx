@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Tag } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -23,7 +24,7 @@ export function TagsPage() {
 
   return (
     <div>
-      <PageHeader title="Tags" subtitle="Create, organize, and track flexible metadata labels." />
+      <PageHeader title="Tags" subtitle="Create, organize, and track flexible metadata labels." icon={Tag} />
       <div className="grid gap-4 p-6 xl:grid-cols-2">
         <Card>
           <CardTitle>Create tag</CardTitle>

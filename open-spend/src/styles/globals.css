@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  color: #0f172a;
-  background-color: #f8fafc;
+  color: #28344a;
+  background-color: #f8f7ff;
   font-family:
     Inter,
     -apple-system,
@@ -12,6 +12,16 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --app-bg-a: #fef7ff;
+  --app-bg-b: #f2f8ff;
+  --app-bg-c: #f7fff7;
+  --card-bg: rgba(255, 255, 255, 0.82);
+  --card-border: rgba(157, 180, 255, 0.26);
+  --text-primary: #26344d;
+  --text-muted: #66728a;
+  --accent: #7c7cff;
+  --accent-soft: #e9e8ff;
+  --focus-ring: #a6a4ff;
 }
 
 * {
@@ -21,9 +31,19 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #f8fafc;
+  background:
+    radial-gradient(1200px 700px at 0% -10%, #ffdffb 0%, transparent 52%),
+    radial-gradient(1000px 650px at 100% 0%, #dff4ff 0%, transparent 48%),
+    radial-gradient(1200px 800px at 50% 120%, #e8ffe8 0%, transparent 52%),
+    linear-gradient(165deg, var(--app-bg-a) 0%, var(--app-bg-b) 52%, var(--app-bg-c) 100%);
+  color: var(--text-primary);
 }
 
 #root {
   min-height: 100vh;
+}
+
+::selection {
+  background: #d8d5ff;
+  color: #1f2750;
 }

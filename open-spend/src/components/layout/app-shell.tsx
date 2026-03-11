@@ -8,6 +8,7 @@ import {
   ListChecks,
   Settings,
   ShoppingBag,
+  Sparkles,
   Tags,
   Workflow,
 } from 'lucide-react'
@@ -28,11 +29,16 @@ const navItems = [
 
 export function AppShell() {
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900">
-      <aside className="w-64 border-r border-slate-200 bg-white p-4">
-        <div className="mb-6">
-          <h1 className="text-lg font-bold">Open Spend</h1>
-          <p className="text-xs text-slate-500">Local-first AMEX analytics</p>
+    <div className="flex min-h-screen text-(--text-primary)">
+      <aside className="w-64 border-r border-white/50 bg-white/60 p-4 backdrop-blur-md">
+        <div className="mb-6 rounded-2xl border border-violet-100 bg-linear-to-br from-violet-100/80 via-fuchsia-100/70 to-sky-100/70 p-3 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white/75 text-violet-700 shadow-sm">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <h1 className="text-lg font-bold">Open Spend</h1>
+          </div>
+          <p className="mt-1 text-xs text-slate-600">Local-first AMEX analytics</p>
         </div>
         <nav className="space-y-1">
           {navItems.map((item) => {
@@ -43,12 +49,18 @@ export function AppShell() {
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100',
+                    'flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all',
+                    isActive
+                      ? 'bg-linear-to-r from-indigo-400/95 via-violet-400/95 to-fuchsia-400/95 text-white shadow-md shadow-violet-200/70'
+                      : 'text-slate-700 hover:bg-white/80',
                   )
                 }
               >
-                <Icon className="h-4 w-4" />
+                <span
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-linear-to-br from-violet-100 to-sky-100 text-violet-700"
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
                 {item.label}
               </NavLink>
             )

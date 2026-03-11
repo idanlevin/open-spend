@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { FolderTree } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,7 +36,11 @@ export function CategoriesPage() {
 
   return (
     <div>
-      <PageHeader title="Categories" subtitle="Rename categories and remap raw AMEX category strings." />
+      <PageHeader
+        title="Categories"
+        subtitle="Rename categories and remap raw AMEX category strings."
+        icon={FolderTree}
+      />
       <div className="grid gap-4 p-6 xl:grid-cols-2">
         <Card>
           <CardTitle>Category directory</CardTitle>

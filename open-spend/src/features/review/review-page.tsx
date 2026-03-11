@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { ClipboardCheck } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,11 @@ export function ReviewPage() {
 
   return (
     <div>
-      <PageHeader title="Review queue" subtitle="Central triage inbox for cleanup work." />
+      <PageHeader
+        title="Review queue"
+        subtitle="Central triage inbox for cleanup work."
+        icon={ClipboardCheck}
+      />
       <div className="grid gap-4 p-6 xl:grid-cols-2">
         <Card>
           <CardTitle>Uncategorized transactions</CardTitle>

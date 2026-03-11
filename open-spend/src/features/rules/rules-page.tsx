@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { WandSparkles } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -90,7 +91,11 @@ export function RulesPage() {
 
   return (
     <div>
-      <PageHeader title="Rules & automations" subtitle="Automate repeated cleanup with local, deterministic rules." />
+      <PageHeader
+        title="Rules & automations"
+        subtitle="Automate repeated cleanup with local, deterministic rules."
+        icon={WandSparkles}
+      />
       <div className="grid gap-4 p-6 xl:grid-cols-2">
         <Card>
           <CardTitle>Create rule</CardTitle>

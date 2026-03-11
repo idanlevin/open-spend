@@ -9,7 +9,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { Download, FilterX } from 'lucide-react'
+import { Download, FilterX, TableProperties } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -163,6 +163,7 @@ export function TransactionsPage() {
       <PageHeader
         title="Transactions explorer"
         subtitle="Filter, group, edit, and export enriched transactions."
+        icon={TableProperties}
         actions={
           <>
             <Button variant="secondary" onClick={() => exportTransactionsCsv(filteredRows)}>
@@ -326,7 +327,7 @@ export function TransactionsPage() {
         <Card className="min-w-0 flex-1 overflow-hidden p-0">
           <div className="overflow-auto">
             <table className="w-full border-collapse text-sm">
-              <thead className="sticky top-0 z-10 bg-slate-100">
+              <thead className="sticky top-0 z-10 bg-gradient-to-r from-violet-100/80 to-sky-100/80">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (

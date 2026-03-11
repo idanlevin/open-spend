@@ -11,7 +11,16 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { FolderSync } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  BadgeDollarSign,
+  FolderSync,
+  LayoutDashboard,
+  ReceiptText,
+  RefreshCcw,
+  Tags,
+  TrendingUp,
+} from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
@@ -20,7 +29,7 @@ import { useWorkspace } from '@/hooks/use-workspace'
 import { buildDashboardMetrics, spendOverTime, topByDimension } from '@/lib/analytics/metrics'
 import { FolderImporter } from '@/features/import/folder-importer'
 
-const PIE_COLORS = ['#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe']
+const PIE_COLORS = ['#a78bfa', '#f9a8d4', '#93c5fd', '#86efac', '#fde68a', '#fca5a5']
 
 export function DashboardPage() {
   const workspace = useWorkspace()
@@ -50,6 +59,7 @@ export function DashboardPage() {
       <PageHeader
         title="Dashboard"
         subtitle="Local-first workspace for AMEX spending analytics."
+        icon={LayoutDashboard}
         actions={
           <Button variant="secondary" onClick={() => workspace.refresh()}>
             <FolderSync className="mr-2 h-4 w-4" />
@@ -60,14 +70,14 @@ export function DashboardPage() {
       <div className="space-y-4 p-6">
         <FolderImporter />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Total spend" value={amountToCurrency(metrics.totalSpend)} />
-          <MetricCard label="Net spend" value={amountToCurrency(metrics.netSpend)} />
-          <MetricCard label="Avg transaction" value={amountToCurrency(metrics.avgTransaction)} />
-          <MetricCard label="Transactions" value={String(metrics.transactionCount)} />
-          <MetricCard label="Top category" value={metrics.topCategory} />
-          <MetricCard label="Top merchant" value={metrics.topMerchant} />
-          <MetricCard label="Refund total" value={amountToCurrency(metrics.refundsTotal)} />
-          <MetricCard label="Uncategorized" value={String(metrics.uncategorizedCount)} />
+          <MetricCard label="Total spend" value={amountToCurrency(metrics.totalSpend)} icon={BadgeDollarSign} />
+          <MetricCard label="Net spend" value={amountToCurrency(metrics.netSpend)} icon={TrendingUp} />
+          <MetricCard label="Avg transaction" value={amountToCurrency(metrics.avgTransaction)} icon={ReceiptText} />
+          <MetricCard label="Transactions" value={String(metrics.transactionCount)} icon={RefreshCcw} />
+          <MetricCard label="Top category" value={metrics.topCategory} icon={Tags} />
+          <MetricCard label="Top merchant" value={metrics.topMerchant} icon={BadgeDollarSign} />
+          <MetricCard label="Refund total" value={amountToCurrency(metrics.refundsTotal)} icon={TrendingUp} />
+          <MetricCard label="Uncategorized" value={String(metrics.uncategorizedCount)} icon={ReceiptText} />
         </div>
         <div className="grid gap-4 xl:grid-cols-3">
           <Card className="xl:col-span-2">
@@ -80,7 +90,7 @@ export function DashboardPage() {
                   <XAxis dataKey="period" />
                   <YAxis />
                   <Tooltip formatter={(value) => amountToCurrency(Number(value))} />
-                  <Bar dataKey="amount" fill="#1d4ed8" radius={6} />
+                  <Bar dataKey="amount" fill="#8b8cfb" radius={8} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -134,20 +144,33 @@ export function DashboardPage() {
   )
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: string
+  icon: LucideIcon
+}) {
   return (
     <Card className="p-3">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">{label}</p>
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-100 to-pink-100 text-violet-700">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+      </div>
+      <p className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{value}</p>
     </Card>
   )
 }
 
 function ReviewStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-      <p className="text-slate-500">{label}</p>
-      <p className="text-xl font-semibold text-slate-900">{value}</p>
+    <div className="rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50/80 to-sky-50/80 p-2">
+      <p className="text-[var(--text-muted)]">{label}</p>
+      <p className="text-xl font-semibold text-[var(--text-primary)]">{value}</p>
     </div>
   )
 }
