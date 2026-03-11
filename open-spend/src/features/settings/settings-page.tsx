@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { HardDriveDownload, Trash2 } from 'lucide-react'
+import { HardDriveDownload, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
@@ -21,7 +21,11 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings & data" subtitle="Manage workspace preferences, backups, and local storage." />
+      <PageHeader
+        title="Settings & data"
+        subtitle="Manage workspace preferences, backups, and local storage."
+        icon={SlidersHorizontal}
+      />
       <div className="grid gap-4 p-6 xl:grid-cols-2">
         <Card>
           <CardTitle>Storage summary</CardTitle>

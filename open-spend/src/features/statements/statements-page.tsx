@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { format, parseISO } from 'date-fns'
+import { Files } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { useWorkspace } from '@/hooks/use-workspace'
@@ -26,6 +27,7 @@ export function StatementsPage() {
       <PageHeader
         title="Statements"
         subtitle="Statement-centric audit trail with import provenance and scoped metrics."
+        icon={Files}
       />
       <div className="grid gap-4 p-6 lg:grid-cols-2">
         {byStatement.map(({ statement, count, totalDebits, totalCredits }) => (

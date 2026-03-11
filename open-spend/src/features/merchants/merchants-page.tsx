@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Store } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
@@ -40,7 +41,11 @@ export function MerchantsPage() {
 
   return (
     <div>
-      <PageHeader title="Merchants" subtitle="Normalize merchant identities and review merchant-level spend." />
+      <PageHeader
+        title="Merchants"
+        subtitle="Normalize merchant identities and review merchant-level spend."
+        icon={Store}
+      />
       <div className="grid gap-4 p-6 xl:grid-cols-[1.2fr,1fr]">
         <Card>
           <CardTitle>Merchant directory</CardTitle>

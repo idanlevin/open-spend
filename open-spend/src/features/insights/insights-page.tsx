@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { LineChart } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { useWorkspace } from '@/hooks/use-workspace'
@@ -35,7 +36,11 @@ export function InsightsPage() {
 
   return (
     <div>
-      <PageHeader title="Insights" subtitle="Chart-first analysis across categories, merchants, and cardholders." />
+      <PageHeader
+        title="Insights"
+        subtitle="Chart-first analysis across categories, merchants, and cardholders."
+        icon={LineChart}
+      />
       <div className="space-y-4 p-6">
         <div className="grid gap-4 xl:grid-cols-2">
           <Card>
@@ -48,7 +53,7 @@ export function InsightsPage() {
                   <XAxis dataKey="period" />
                   <YAxis />
                   <Tooltip formatter={(value) => amountToCurrency(Number(value))} />
-                  <Area dataKey="amount" stroke="#2563eb" fill="#bfdbfe" />
+                  <Area dataKey="amount" stroke="#8b8cfb" fill="#e9e8ff" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -63,7 +68,7 @@ export function InsightsPage() {
                   <XAxis type="number" />
                   <YAxis dataKey="label" type="category" width={140} />
                   <Tooltip formatter={(value) => amountToCurrency(Number(value))} />
-                  <Bar dataKey="amount" fill="#1d4ed8" />
+                  <Bar dataKey="amount" fill="#9ca4ff" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
