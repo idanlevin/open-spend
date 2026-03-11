@@ -4,7 +4,7 @@
 
 ### 1.1 Working title
 
-**Ledger Lens** — a front-end-only, local-first spending analysis web app for AMEX statement `.xlsx` files.
+**Open Spend** — a front-end-only, local-first spending analysis web app for AMEX statement `.xlsx` files.
 
 ### 1.2 Product goal
 
