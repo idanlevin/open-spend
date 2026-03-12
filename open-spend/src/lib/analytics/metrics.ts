@@ -43,10 +43,14 @@ export function buildDashboardMetrics(transactions: EnrichedTransaction[]): Dash
   }
 }
 
-export function spendOverTime(transactions: EnrichedTransaction[]): Array<{ period: string; amount: number }> {
+export function spendOverTime(
+  transactions: EnrichedTransaction[],
+  options?: { includeRefunds?: boolean },
+): Array<{ period: string; amount: number }> {
+  const includeRefunds = options?.includeRefunds ?? true
   const byMonth = new Map<string, number>()
   transactions
-    .filter((tx) => !tx.isExcludedFromAnalytics)
+    .filter((tx) => !tx.isExcludedFromAnalytics && (includeRefunds || tx.amount >= 0))
     .forEach((tx) => {
       const period = format(parseISO(tx.transactionDate), 'yyyy-MM')
       byMonth.set(period, (byMonth.get(period) ?? 0) + tx.amount)

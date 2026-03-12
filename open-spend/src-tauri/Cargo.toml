@@ -2,7 +2,7 @@
 name = "open-spend"
 version = "0.1.0"
 description = "Local-first AMEX spending analytics desktop app"
-authors = ["Open Spend"]
+authors = ["OpenSpend"]
 license = ""
 repository = ""
 edition = "2021"

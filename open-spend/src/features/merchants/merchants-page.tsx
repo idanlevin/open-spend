@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Store } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ArrowRight, Store } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
@@ -8,7 +9,9 @@ import { useWorkspace } from '@/hooks/use-workspace'
 import { amountToCurrency } from '@/lib/utils'
 
 export function MerchantsPage() {
+  const navigate = useNavigate()
   const workspace = useWorkspace()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [selectedMerchant, setSelectedMerchant] = useState<string>('')
   const [renameTo, setRenameTo] = useState('')
 
@@ -37,7 +40,18 @@ export function MerchantsPage() {
       .sort((a, b) => b.amount - a.amount)
   }, [workspace.transactions])
 
-  const active = merchantStats.find((row) => row.merchant === selectedMerchant) ?? merchantStats[0]
+  const selectedMerchantFromQuery = searchParams.get('merchant')
+  const selectedMerchantResolved = useMemo(() => {
+    const matchedFromQuery = selectedMerchantFromQuery
+      ? merchantStats.find(
+          (row) => row.merchant.toLowerCase() === selectedMerchantFromQuery.toLowerCase(),
+        )?.merchant
+      : undefined
+    return matchedFromQuery ?? (selectedMerchant || merchantStats[0]?.merchant || '')
+  }, [merchantStats, selectedMerchant, selectedMerchantFromQuery])
+  const active =
+    merchantStats.find((row) => row.merchant === selectedMerchantResolved) ?? merchantStats[0]
+  const renameValue = renameTo || active?.merchant || ''
 
   return (
     <div>
@@ -62,6 +76,7 @@ export function MerchantsPage() {
                 onClick={() => {
                   setSelectedMerchant(merchant.merchant)
                   setRenameTo(merchant.merchant)
+                  setSearchParams({ merchant: merchant.merchant })
                 }}
               >
                 <div className="flex items-center justify-between">
@@ -82,10 +97,17 @@ export function MerchantsPage() {
                 <p className="text-base font-semibold">{active.merchant}</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-md bg-slate-50 p-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-slate-50 p-2 text-left transition hover:bg-violet-50"
+                  onClick={() => navigate(`/transactions?merchant=${encodeURIComponent(active.merchant)}`)}
+                >
                   <p className="text-slate-500">Transactions</p>
-                  <p className="text-lg font-semibold">{active.count}</p>
-                </div>
+                  <p className="flex items-center gap-1 text-lg font-semibold">
+                    {active.count}
+                    <ArrowRight className="h-4 w-4 text-violet-500" />
+                  </p>
+                </button>
                 <div className="rounded-md bg-slate-50 p-2">
                   <p className="text-slate-500">Total spend</p>
                   <p className="text-lg font-semibold">{amountToCurrency(active.amount)}</p>
@@ -102,11 +124,11 @@ export function MerchantsPage() {
               <div>
                 <p className="mb-1 text-slate-500">Rename normalized merchant</p>
                 <div className="flex gap-2">
-                  <Input value={renameTo} onChange={(event) => setRenameTo(event.target.value)} />
+                  <Input value={renameValue} onChange={(event) => setRenameTo(event.target.value)} />
                   <Button
                     onClick={async () => {
-                      if (!active || !renameTo.trim()) return
-                      await workspace.renameMerchant(active.merchant, renameTo.trim())
+                      if (!active || !renameValue.trim()) return
+                      await workspace.renameMerchant(active.merchant, renameValue.trim())
                     }}
                   >
                     Save

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { endOfMonth, format, parse } from 'date-fns'
 import {
   type ColumnDef,
   type GroupingState,
@@ -10,6 +11,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { Download, FilterX, TableProperties } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,6 +28,7 @@ import { applyTransactionFilters } from '@/lib/analytics/filtering'
 import { exportTransactionsCsv, exportTransactionsXlsx } from '@/lib/export/exporters'
 
 export function TransactionsPage() {
+  const [searchParams] = useSearchParams()
   const workspace = useWorkspace()
   const { filters, setFilters, resetFilters } = useViewStore()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -157,6 +160,45 @@ export function TransactionsPage() {
     }
     setGrouping([fieldByGroup[next]])
   }
+
+  useEffect(() => {
+    if ([...searchParams.keys()].length === 0) return
+
+    const patch: Parameters<typeof setFilters>[0] = {}
+    const startDateParam = searchParams.get('startDate')
+    const endDateParam = searchParams.get('endDate')
+    const monthParam = searchParams.get('month')
+    const categoryIdParam = searchParams.get('categoryId')
+    const categoryNameParam = searchParams.get('category')
+    const merchantParam = searchParams.get('merchant')
+    const queryParam = searchParams.get('q')
+    const uncategorizedOnlyParam = searchParams.get('uncategorizedOnly')
+
+    if (monthParam) {
+      const monthDate = parse(monthParam, 'yyyy-MM', new Date())
+      if (!Number.isNaN(monthDate.getTime())) {
+        patch.startDate = format(monthDate, 'yyyy-MM-01')
+        patch.endDate = format(endOfMonth(monthDate), 'yyyy-MM-dd')
+      }
+    }
+    if (startDateParam) patch.startDate = startDateParam
+    if (endDateParam) patch.endDate = endDateParam
+    if (merchantParam) patch.merchants = [merchantParam]
+    if (queryParam) patch.query = queryParam
+    if (uncategorizedOnlyParam === 'true') patch.uncategorizedOnly = true
+
+    if (categoryIdParam) {
+      patch.categoryIds = [categoryIdParam]
+    } else if (categoryNameParam) {
+      const category = workspace.categories.find(
+        (item) => item.name.toLowerCase() === categoryNameParam.toLowerCase(),
+      )
+      if (category) patch.categoryIds = [category.categoryId]
+    }
+
+    resetFilters()
+    setFilters(patch)
+  }, [resetFilters, searchParams, setFilters, workspace.categories])
 
   return (
     <div>
@@ -327,7 +369,7 @@ export function TransactionsPage() {
         <Card className="min-w-0 flex-1 overflow-hidden p-0">
           <div className="overflow-auto">
             <table className="w-full border-collapse text-sm">
-              <thead className="sticky top-0 z-10 bg-gradient-to-r from-violet-100/80 to-sky-100/80">
+              <thead className="sticky top-0 z-10 bg-linear-to-r from-violet-100/80 to-sky-100/80">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (

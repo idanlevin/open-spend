@@ -36,7 +36,7 @@ export function AppShell() {
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white/75 text-violet-700 shadow-sm">
               <Sparkles className="h-4 w-4" />
             </span>
-            <h1 className="text-lg font-bold">Open Spend</h1>
+            <h1 className="text-lg font-bold">OpenSpend</h1>
           </div>
           <p className="mt-1 text-xs text-slate-600">Local-first AMEX analytics</p>
         </div>
