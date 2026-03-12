@@ -29,7 +29,6 @@ export async function buildTransactionFingerprint(input: NormalizeInput): Promis
 
 export async function normalizeTransaction(input: NormalizeInput): Promise<TransactionNormalized> {
   const merchantNormalized = normalizeMerchantName(input.row.merchantRaw || input.row.descriptionRaw)
-  const categoryIdResolved = resolveCategoryId(input.row.amexCategoryRaw, input.categoryAliases)
   const sourceRowFingerprint = await buildTransactionFingerprint(input)
   const transactionKind = classifyTransactionKind({
     amount: input.row.amount,
@@ -37,6 +36,11 @@ export async function normalizeTransaction(input: NormalizeInput): Promise<Trans
     statementDescriptor: input.row.statementDescriptor,
     amexCategoryRaw: input.row.amexCategoryRaw,
   })
+  const categoryIdResolvedBase = resolveCategoryId(input.row.amexCategoryRaw, input.categoryAliases)
+  const categoryIdResolved =
+    categoryIdResolvedBase === 'cat_uncategorized' && transactionKind === 'payment'
+      ? 'cat_transfers_credits'
+      : categoryIdResolvedBase
 
   return {
     transactionId: `txn_${sourceRowFingerprint}`,
