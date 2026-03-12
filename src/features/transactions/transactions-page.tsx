@@ -1,19 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { endOfMonth, format, parse } from 'date-fns'
-import {
-  type ColumnDef,
-  type GroupingState,
-  type RowSelectionState,
-  flexRender,
-  getCoreRowModel,
-  getGroupedRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
+import { type ColumnDef, type GroupingState } from '@tanstack/react-table'
 import { Download, FilterX, TableProperties } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
+import { AdvancedDataTable } from '@/components/ui/advanced-data-table'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -32,7 +24,8 @@ export function TransactionsPage() {
   const workspace = useWorkspace()
   const { filters, setFilters, resetFilters } = useViewStore()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [selectedRows, setSelectedRows] = useState<EnrichedTransaction[]>([])
+  const [selectionResetToken, setSelectionResetToken] = useState(0)
   const [grouping, setGrouping] = useState<GroupingState>([])
   const [bulkCategory, setBulkCategory] = useState('')
 
@@ -43,16 +36,6 @@ export function TransactionsPage() {
 
   const columns = useMemo<ColumnDef<EnrichedTransaction>[]>(
     () => [
-      {
-        id: 'select',
-        header: 'Select',
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onChange={(event) => row.toggleSelected(Boolean(event.target.checked))}
-          />
-        ),
-      },
       {
         accessorKey: 'transactionDate',
         header: 'Date',
@@ -103,6 +86,7 @@ export function TransactionsPage() {
       {
         id: 'tags',
         header: 'Tags',
+        accessorFn: (row) => row.tags.map((tag) => tag.name).join(', '),
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-1">
             {row.original.tags.slice(0, 2).map((tag) => (
@@ -120,36 +104,19 @@ export function TransactionsPage() {
     [],
   )
 
-  const table = useReactTable({
-    data: filteredRows,
-    columns,
-    state: {
-      rowSelection,
-      grouping,
-    },
-    onGroupingChange: setGrouping,
-    onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getGroupedRowModel: getGroupedRowModel(),
-    getRowId: (row) => row.transactionId,
-  })
-
   const selectedTransaction = useMemo(
     () => workspace.transactions.find((tx) => tx.transactionId === selectedId),
     [workspace.transactions, selectedId],
   )
 
-  const selectedRows = table.getSelectedRowModel().rows
   const selectedCount = selectedRows.length
 
   const applyBulkCategory = async () => {
     if (!bulkCategory || selectedRows.length === 0) return
-    await Promise.all(
-      selectedRows.map((row) => workspace.updateCategoryOverride(row.original.transactionId, bulkCategory)),
-    )
+    await Promise.all(selectedRows.map((row) => workspace.updateCategoryOverride(row.transactionId, bulkCategory)))
     setBulkCategory('')
-    setRowSelection({})
+    setSelectedRows([])
+    setSelectionResetToken((value) => value + 1)
   }
 
   const setGroupBy = (next: GroupByOption) => {
@@ -394,37 +361,23 @@ export function TransactionsPage() {
           </Card>
         </div>
         <Card className="min-w-0 flex-1 overflow-hidden p-0">
-          <div className="overflow-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead className="sticky top-0 z-10 bg-linear-to-r from-violet-100/80 to-sky-100/80">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th key={header.id} className="border-b border-slate-200 px-2 py-2 text-left">
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
-                    onClick={() => setSelectedId(row.original.transactionId)}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-2 py-1.5 align-top">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="p-3">
+            <AdvancedDataTable
+              tableId="transactions-explorer"
+              data={filteredRows}
+              columns={columns}
+              getRowId={(row) => row.transactionId}
+              enableRowSelection
+              onSelectedRowsChange={setSelectedRows}
+              selectionResetToken={selectionResetToken}
+              defaultSorting={[{ id: 'transactionDate', desc: true }]}
+              grouping={grouping}
+              onGroupingChange={setGrouping}
+              enableGrouping
+              onRowClick={(row) => setSelectedId(row.transactionId)}
+              isRowActive={(row) => row.transactionId === selectedId}
+              emptyMessage="No transactions match the current filters."
+            />
           </div>
         </Card>
         <Card className="w-[320px] shrink-0">

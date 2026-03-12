@@ -1,10 +1,13 @@
 import { useMemo } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useNavigate } from 'react-router-dom'
 import { BadgeDollarSign, HandCoins } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
+import { AdvancedDataTable } from '@/components/ui/advanced-data-table'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { useWorkspace } from '@/hooks/use-workspace'
+import type { EnrichedTransaction } from '@/types/domain'
 import { amountToCurrency } from '@/lib/utils'
 
 export function PaymentsPage() {
@@ -22,6 +25,32 @@ export function PaymentsPage() {
   const totalPayments = useMemo(
     () => payments.filter((tx) => !tx.isExcludedFromAnalytics).reduce((sum, tx) => sum + tx.amount, 0),
     [payments],
+  )
+  const columns = useMemo<ColumnDef<EnrichedTransaction, unknown>[]>(
+    () => [
+      {
+        accessorKey: 'transactionDate',
+        header: 'Date',
+      },
+      {
+        accessorKey: 'cardMember',
+        header: 'Cardholder',
+      },
+      {
+        accessorKey: 'merchantFinal',
+        header: 'Merchant',
+      },
+      {
+        accessorKey: 'descriptionRaw',
+        header: 'Description',
+      },
+      {
+        accessorKey: 'amount',
+        header: 'Amount',
+        cell: ({ row }) => <span className="font-medium text-emerald-700">{amountToCurrency(row.original.amount)}</span>,
+      },
+    ],
+    [],
   )
 
   return (
@@ -55,31 +84,15 @@ export function PaymentsPage() {
           {payments.length === 0 ? (
             <p className="mt-3 text-sm text-slate-500">No payments detected yet in this workspace.</p>
           ) : (
-            <div className="mt-3 overflow-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-left text-slate-600">
-                    <th className="py-2 pr-2">Date</th>
-                    <th className="py-2 pr-2">Cardholder</th>
-                    <th className="py-2 pr-2">Merchant</th>
-                    <th className="py-2 pr-2">Description</th>
-                    <th className="py-2 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((payment) => (
-                    <tr key={payment.transactionId} className="border-b border-slate-100">
-                      <td className="py-2 pr-2">{payment.transactionDate}</td>
-                      <td className="py-2 pr-2">{payment.cardMember}</td>
-                      <td className="py-2 pr-2">{payment.merchantFinal}</td>
-                      <td className="py-2 pr-2">{payment.descriptionRaw}</td>
-                      <td className="py-2 text-right font-medium text-emerald-700">
-                        {amountToCurrency(payment.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-3">
+              <AdvancedDataTable
+                tableId="payments-recent"
+                data={payments}
+                columns={columns}
+                getRowId={(row) => row.transactionId}
+                defaultSorting={[{ id: 'transactionDate', desc: true }]}
+                emptyMessage="No payments detected yet in this workspace."
+              />
             </div>
           )}
         </Card>
