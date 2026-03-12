@@ -135,6 +135,8 @@ describe('ui flows', () => {
     const user = userEvent.setup()
     renderTransactionsPage()
     await user.click(screen.getByText('STARBUCKS 001'))
+    expect(screen.getAllByText('Raw Category').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Dining').length).toBeGreaterThan(0)
     expect(screen.getByText('Save overrides')).toBeInTheDocument()
   })
 

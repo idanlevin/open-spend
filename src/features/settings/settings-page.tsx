@@ -4,19 +4,23 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { exportWorkspaceBackup } from '@/lib/export/exporters'
+import { STARTER_TAGS } from '@/lib/storage/seeds'
 import { useWorkspace } from '@/hooks/use-workspace'
 
 export function SettingsPage() {
   const workspace = useWorkspace()
+  const starterTagIds = useMemo(() => new Set(STARTER_TAGS.map((tag) => tag.tagId)), [])
   const storageSummary = useMemo(
     () => ({
       statements: workspace.statements.length,
       transactions: workspace.transactions.length,
-      tags: workspace.tags.length,
-      categories: workspace.categories.length,
+      categories: workspace.categories.filter((category) => !category.isSystem).length,
+      tags: workspace.tags.filter((tag) => !starterTagIds.has(tag.tagId)).length,
       rules: workspace.rules.length,
+      systemCategories: workspace.categories.filter((category) => category.isSystem).length,
+      starterTags: workspace.tags.filter((tag) => starterTagIds.has(tag.tagId)).length,
     }),
-    [workspace],
+    [starterTagIds, workspace],
   )
 
   return (
@@ -29,7 +33,7 @@ export function SettingsPage() {
       <div className="grid gap-4 p-6 xl:grid-cols-2">
         <Card>
           <CardTitle>Storage summary</CardTitle>
-          <CardDescription>IndexedDB tables in current workspace profile.</CardDescription>
+          <CardDescription>Workspace data counts (excluding seeded defaults).</CardDescription>
           <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
             <Stat label="Statements" value={storageSummary.statements} />
             <Stat label="Transactions" value={storageSummary.transactions} />
@@ -37,6 +41,10 @@ export function SettingsPage() {
             <Stat label="Tags" value={storageSummary.tags} />
             <Stat label="Rules" value={storageSummary.rules} />
           </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Defaults kept after reset: {storageSummary.systemCategories} system categories and{' '}
+            {storageSummary.starterTags} starter tags.
+          </p>
         </Card>
         <Card>
           <CardTitle>Backup & restore</CardTitle>
@@ -54,7 +62,7 @@ export function SettingsPage() {
         </Card>
         <Card>
           <CardTitle>Danger zone</CardTitle>
-          <CardDescription>Clear local data and reset workspace defaults.</CardDescription>
+          <CardDescription>Clear local data and keep system category/tag defaults.</CardDescription>
           <div className="mt-3">
             <Button
               variant="destructive"

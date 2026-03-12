@@ -94,6 +94,13 @@ export function TransactionsPage() {
         header: 'Category',
       },
       {
+        accessorKey: 'amexCategoryRaw',
+        header: 'Raw Category',
+        cell: ({ row }) => (
+          <span className="text-xs text-slate-700">{row.original.amexCategoryRaw || '—'}</span>
+        ),
+      },
+      {
         id: 'tags',
         header: 'Tags',
         cell: ({ row }) => (
@@ -461,6 +468,10 @@ function TransactionDetails({ transaction }: { transaction: EnrichedTransaction 
       <div>
         <p className="text-xs text-slate-500">Merchant</p>
         <Input value={merchantOverride} onChange={(event) => setMerchantOverride(event.target.value)} />
+      </div>
+      <div>
+        <p className="text-xs text-slate-500">Raw Category</p>
+        <p className="text-sm">{transaction.amexCategoryRaw || '—'}</p>
       </div>
       <div>
         <p className="text-xs text-slate-500">Category</p>

@@ -52,7 +52,11 @@ function applyOverrides(
   })
   const transactionKind = tx.transactionKind ?? inferredKind
   const merchantFinal = override?.merchantOverride || tx.merchantNormalized
-  const categoryFinalId = override?.categoryOverrideId || tx.categoryIdResolved
+  const categoryIdResolvedEffective =
+    tx.categoryIdResolved === 'cat_uncategorized' && transactionKind === 'payment'
+      ? 'cat_transfers_credits'
+      : tx.categoryIdResolved
+  const categoryFinalId = override?.categoryOverrideId || categoryIdResolvedEffective
   const categoryFinalName = categoriesById.get(categoryFinalId)?.name ?? 'Uncategorized'
   const resolvedTags = links
     .map((link) => tagsById.get(link.tagId))
