@@ -18,6 +18,7 @@ import {
   BadgeDollarSign,
   ChevronRight,
   FolderSync,
+  HandCoins,
   LayoutDashboard,
   ReceiptText,
   RefreshCcw,
@@ -57,7 +58,9 @@ export function DashboardPage() {
   )
 
   const needsReview = {
-    uncategorized: workspace.transactions.filter((tx) => tx.categoryFinalName === 'Uncategorized').length,
+    uncategorized: workspace.transactions.filter(
+      (tx) => tx.categoryFinalName === 'Uncategorized' && !tx.isPayment,
+    ).length,
     newMerchants: workspace.latestImport?.newMerchants.length ?? 0,
     suspectedDuplicates: workspace.latestImport?.importBatch.duplicatesSkipped ?? 0,
     ruleConflicts: 0,
@@ -82,9 +85,9 @@ export function DashboardPage() {
   const handleMonthBarClick = (chartPoint: unknown) => {
     const period =
       typeof chartPoint === 'object' &&
-      chartPoint !== null &&
-      'payload' in chartPoint &&
-      typeof (chartPoint as { payload?: { period?: unknown } }).payload?.period === 'string'
+        chartPoint !== null &&
+        'payload' in chartPoint &&
+        typeof (chartPoint as { payload?: { period?: unknown } }).payload?.period === 'string'
         ? (chartPoint as { payload: { period: string } }).payload.period
         : undefined
 
@@ -98,9 +101,9 @@ export function DashboardPage() {
   const handleCategorySliceClick = (slicePoint: unknown) => {
     const categoryName =
       typeof slicePoint === 'object' &&
-      slicePoint !== null &&
-      'payload' in slicePoint &&
-      typeof (slicePoint as { payload?: { label?: unknown } }).payload?.label === 'string'
+        slicePoint !== null &&
+        'payload' in slicePoint &&
+        typeof (slicePoint as { payload?: { label?: unknown } }).payload?.label === 'string'
         ? (slicePoint as { payload: { label: string } }).payload.label
         : undefined
     if (!categoryName) return
@@ -130,14 +133,28 @@ export function DashboardPage() {
         <FolderImporter />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Total spend" value={amountToCurrency(metrics.totalSpend)} icon={BadgeDollarSign} />
+          <MetricCard label="Refund total" value={amountToCurrency(metrics.refundsTotal)} icon={TrendingUp} />
           <MetricCard label="Net spend" value={amountToCurrency(metrics.netSpend)} icon={TrendingUp} />
-          <MetricCard label="Avg transaction" value={amountToCurrency(metrics.avgTransaction)} icon={ReceiptText} />
+          <MetricCard
+            label="Payments"
+            value={amountToCurrency(metrics.paymentsTotal)}
+            icon={HandCoins}
+            actionLabel={metrics.paymentCount > 0 ? 'Open payments page' : undefined}
+            onClick={metrics.paymentCount > 0 ? () => navigate('/payments') : undefined}
+          />
           <MetricCard
             label="Transactions"
             value={String(metrics.transactionCount)}
             icon={RefreshCcw}
             actionLabel={metrics.transactionCount > 0 ? 'View all transactions' : undefined}
             onClick={metrics.transactionCount > 0 ? () => navigateToTransactions() : undefined}
+          />
+          <MetricCard
+            label="Top merchant"
+            value={metrics.topMerchant}
+            icon={BadgeDollarSign}
+            actionLabel={metrics.topMerchant && metrics.topMerchant !== '-' ? 'View merchant' : undefined}
+            onClick={metrics.topMerchant && metrics.topMerchant !== '-' ? handleTopMerchantClick : undefined}
           />
           <MetricCard
             label="Top category"
@@ -147,25 +164,17 @@ export function DashboardPage() {
             onClick={
               metrics.topCategory && metrics.topCategory !== '-'
                 ? () => {
-                    const category = workspace.categories.find(
-                      (item) => item.name.toLowerCase() === metrics.topCategory.toLowerCase(),
-                    )
-                    navigateToTransactions({
-                      categoryId: category?.categoryId,
-                      category: metrics.topCategory,
-                    })
-                  }
+                  const category = workspace.categories.find(
+                    (item) => item.name.toLowerCase() === metrics.topCategory.toLowerCase(),
+                  )
+                  navigateToTransactions({
+                    categoryId: category?.categoryId,
+                    category: metrics.topCategory,
+                  })
+                }
                 : undefined
             }
           />
-          <MetricCard
-            label="Top merchant"
-            value={metrics.topMerchant}
-            icon={BadgeDollarSign}
-            actionLabel={metrics.topMerchant && metrics.topMerchant !== '-' ? 'View merchant' : undefined}
-            onClick={metrics.topMerchant && metrics.topMerchant !== '-' ? handleTopMerchantClick : undefined}
-          />
-          <MetricCard label="Refund total" value={amountToCurrency(metrics.refundsTotal)} icon={TrendingUp} />
           <MetricCard
             label="Uncategorized"
             value={String(metrics.uncategorizedCount)}
@@ -192,7 +201,7 @@ export function DashboardPage() {
                   checked={includeRefundsInTrend}
                   onChange={(event) => setIncludeRefundsInTrend(event.target.checked)}
                 />
-                Include refunds
+                Include refunds (payments stay excluded)
               </label>
             </div>
             <div className="mt-3 h-72">

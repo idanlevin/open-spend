@@ -4,6 +4,7 @@ import { CategoriesPage } from '@/features/categories/categories-page'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
 import { InsightsPage } from '@/features/insights/insights-page'
 import { MerchantsPage } from '@/features/merchants/merchants-page'
+import { PaymentsPage } from '@/features/payments/payments-page'
 import { ReviewPage } from '@/features/review/review-page'
 import { RulesPage } from '@/features/rules/rules-page'
 import { SettingsPage } from '@/features/settings/settings-page'
@@ -23,6 +24,10 @@ export const router = createBrowserRouter([
       {
         path: 'transactions',
         element: <TransactionsPage />,
+      },
+      {
+        path: 'payments',
+        element: <PaymentsPage />,
       },
       {
         path: 'insights',

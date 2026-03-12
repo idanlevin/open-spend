@@ -1,5 +1,6 @@
 import { db, deleteLegacyDatabases } from '@/lib/storage/db'
 import { STARTER_TAGS, SYSTEM_CATEGORIES } from '@/lib/storage/seeds'
+import { classifyTransactionKind } from '@/lib/normalization/transaction-kind'
 import { normalizeMerchantName } from '@/lib/normalization/merchant'
 import { randomId } from '@/lib/utils'
 import type {
@@ -43,6 +44,13 @@ function applyOverrides(
   tagsById: Map<string, Tag>,
   links: TransactionTag[],
 ): EnrichedTransaction {
+  const inferredKind = classifyTransactionKind({
+    amount: tx.amount,
+    descriptionRaw: tx.descriptionRaw,
+    statementDescriptor: tx.statementDescriptor,
+    amexCategoryRaw: tx.amexCategoryRaw,
+  })
+  const transactionKind = tx.transactionKind ?? inferredKind
   const merchantFinal = override?.merchantOverride || tx.merchantNormalized
   const categoryFinalId = override?.categoryOverrideId || tx.categoryIdResolved
   const categoryFinalName = categoriesById.get(categoryFinalId)?.name ?? 'Uncategorized'
@@ -52,6 +60,9 @@ function applyOverrides(
 
   return {
     ...tx,
+    transactionKind,
+    isRefund: transactionKind === 'refund',
+    isPayment: transactionKind === 'payment',
     merchantFinal,
     categoryFinalId,
     categoryFinalName,

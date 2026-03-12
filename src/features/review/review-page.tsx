@@ -11,7 +11,10 @@ import { amountToCurrency } from '@/lib/utils'
 export function ReviewPage() {
   const workspace = useWorkspace()
   const uncategorized = useMemo(
-    () => workspace.transactions.filter((tx) => tx.categoryFinalName === 'Uncategorized').slice(0, 80),
+    () =>
+      workspace.transactions
+        .filter((tx) => tx.categoryFinalName === 'Uncategorized' && !tx.isPayment)
+        .slice(0, 80),
     [workspace.transactions],
   )
   const largeTransactions = useMemo(
