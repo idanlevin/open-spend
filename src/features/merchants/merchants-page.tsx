@@ -69,7 +69,7 @@ export function MerchantsPage() {
               <button
                 key={merchant.merchant}
                 className={`w-full rounded-md border p-2 text-left ${
-                  selectedMerchant === merchant.merchant
+                  selectedMerchantResolved === merchant.merchant
                     ? 'border-slate-900 bg-slate-100'
                     : 'border-slate-200 hover:bg-slate-50'
                 }`}
