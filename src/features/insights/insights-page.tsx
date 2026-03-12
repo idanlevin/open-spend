@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   Area,
   AreaChart,
@@ -13,9 +14,12 @@ import {
 import { LineChart } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { AdvancedDataTable } from '@/components/ui/advanced-data-table'
 import { useWorkspace } from '@/hooks/use-workspace'
 import { amountToCurrency } from '@/lib/utils'
 import { recurringCandidates, spendOverTime, topByDimension } from '@/lib/analytics/metrics'
+
+type RecurringCandidate = ReturnType<typeof recurringCandidates>[number]
 
 export function InsightsPage() {
   const workspace = useWorkspace()
@@ -33,6 +37,29 @@ export function InsightsPage() {
     [workspace.transactions],
   )
   const recurring = useMemo(() => recurringCandidates(workspace.transactions), [workspace.transactions])
+  const recurringColumns = useMemo<ColumnDef<RecurringCandidate, unknown>[]>(
+    () => [
+      {
+        accessorKey: 'merchant',
+        header: 'Merchant',
+      },
+      {
+        accessorKey: 'occurrences',
+        header: 'Occurrences',
+      },
+      {
+        accessorKey: 'averageAmount',
+        header: 'Avg amount',
+        cell: ({ row }) => amountToCurrency(row.original.averageAmount),
+      },
+      {
+        accessorKey: 'confidence',
+        header: 'Confidence',
+        cell: ({ row }) => `${Math.round(row.original.confidence * 100)}%`,
+      },
+    ],
+    [],
+  )
 
   return (
     <div>
@@ -105,27 +132,15 @@ export function InsightsPage() {
         <Card>
           <CardTitle>Recurring charge candidates</CardTitle>
           <CardDescription>Heuristic detections based on repeated merchant + amount behavior.</CardDescription>
-          <div className="mt-3 overflow-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-600">
-                  <th className="py-2">Merchant</th>
-                  <th className="py-2">Occurrences</th>
-                  <th className="py-2">Avg amount</th>
-                  <th className="py-2">Confidence</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recurring.map((item) => (
-                  <tr key={item.merchant} className="border-b border-slate-100">
-                    <td className="py-2">{item.merchant}</td>
-                    <td className="py-2">{item.occurrences}</td>
-                    <td className="py-2">{amountToCurrency(item.averageAmount)}</td>
-                    <td className="py-2">{Math.round(item.confidence * 100)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-3">
+            <AdvancedDataTable
+              tableId="insights-recurring-candidates"
+              data={recurring}
+              columns={recurringColumns}
+              getRowId={(row) => row.merchant}
+              defaultSorting={[{ id: 'confidence', desc: true }]}
+              emptyMessage="No recurring charge patterns were detected yet."
+            />
           </div>
         </Card>
       </div>
