@@ -45,7 +45,9 @@ export function InsightsPage() {
         <div className="grid gap-4 xl:grid-cols-2">
           <Card>
             <CardTitle>Monthly spend trend</CardTitle>
-            <CardDescription>Track long-term spending slope and seasonality.</CardDescription>
+            <CardDescription>
+              Track long-term spending slope and seasonality. Balance payments are excluded.
+            </CardDescription>
             <div className="mt-3 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trend}>

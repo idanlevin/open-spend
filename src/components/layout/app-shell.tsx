@@ -6,6 +6,7 @@ import {
   Home,
   Landmark,
   ListChecks,
+  HandCoins,
   Settings,
   ShoppingBag,
   Sparkles,
@@ -17,6 +18,7 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { to: '/', label: 'Dashboard', icon: Home },
   { to: '/transactions', label: 'Transactions', icon: ListChecks },
+  { to: '/payments', label: 'Payments', icon: HandCoins },
   { to: '/insights', label: 'Insights', icon: BarChart3 },
   { to: '/statements', label: 'Statements', icon: FolderUp },
   { to: '/merchants', label: 'Merchants', icon: ShoppingBag },

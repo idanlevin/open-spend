@@ -173,6 +173,8 @@ export function TransactionsPage() {
     const merchantParam = searchParams.get('merchant')
     const queryParam = searchParams.get('q')
     const uncategorizedOnlyParam = searchParams.get('uncategorizedOnly')
+    const paymentsOnlyParam = searchParams.get('paymentsOnly')
+    const kindParam = searchParams.get('kind')
 
     if (monthParam) {
       const monthDate = parse(monthParam, 'yyyy-MM', new Date())
@@ -186,6 +188,13 @@ export function TransactionsPage() {
     if (merchantParam) patch.merchants = [merchantParam]
     if (queryParam) patch.query = queryParam
     if (uncategorizedOnlyParam === 'true') patch.uncategorizedOnly = true
+    if (paymentsOnlyParam === 'true' || kindParam === 'payment') {
+      patch.paymentsOnly = true
+      patch.refundsOnly = false
+    } else if (kindParam === 'refund') {
+      patch.refundsOnly = true
+      patch.paymentsOnly = false
+    }
 
     if (categoryIdParam) {
       patch.categoryIds = [categoryIdParam]
@@ -323,9 +332,20 @@ export function TransactionsPage() {
                 <label className="flex items-center gap-2">
                   <Checkbox
                     checked={filters.refundsOnly}
-                    onChange={(event) => setFilters({ refundsOnly: event.target.checked })}
+                    onChange={(event) =>
+                      setFilters({ refundsOnly: event.target.checked, paymentsOnly: false })
+                    }
                   />
                   Refunds only
+                </label>
+                <label className="flex items-center gap-2">
+                  <Checkbox
+                    checked={filters.paymentsOnly}
+                    onChange={(event) =>
+                      setFilters({ paymentsOnly: event.target.checked, refundsOnly: false })
+                    }
+                  />
+                  Payments only
                 </label>
                 <label className="flex items-center gap-2">
                   <Checkbox

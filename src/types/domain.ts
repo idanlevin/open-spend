@@ -1,6 +1,7 @@
 export type UUID = string
 
 export type DateScopeMode = 'statement' | 'custom' | 'month' | 'quarter' | 'year' | 'ytd'
+export type TransactionKind = 'charge' | 'refund' | 'payment'
 
 export interface ImportBatch {
   importBatchId: UUID
@@ -73,8 +74,10 @@ export interface TransactionNormalized {
   reference: string
   amexCategoryRaw: string
   categoryIdResolved: string
+  transactionKind: TransactionKind
   isCredit: boolean
   isRefund: boolean
+  isPayment: boolean
   isPendingLike: boolean
   duplicateGroupKey: string
   sourceRowFingerprint: string

@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { TransactionsPage } from '@/features/transactions/transactions-page'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useViewStore } from '@/stores/view-store'
 
 describe('ui flows', () => {
+  const renderTransactionsPage = () =>
+    render(
+      <MemoryRouter>
+        <TransactionsPage />
+      </MemoryRouter>,
+    )
+
   beforeEach(() => {
     useViewStore.setState({
       filters: {
@@ -18,6 +26,7 @@ describe('ui flows', () => {
         uncategorizedOnly: false,
         excludedOnly: false,
         refundsOnly: false,
+        paymentsOnly: false,
         businessOnly: false,
         reimbursableOnly: false,
         groupBy: 'none',
@@ -76,8 +85,10 @@ describe('ui flows', () => {
           categoryIdResolved: 'cat_food_dining',
           categoryFinalId: 'cat_food_dining',
           categoryFinalName: 'Food & Dining',
+          transactionKind: 'charge',
           isCredit: false,
           isRefund: false,
+          isPayment: false,
           isPendingLike: false,
           duplicateGroupKey: 'd1',
           sourceRowFingerprint: 'f1',
@@ -111,7 +122,7 @@ describe('ui flows', () => {
   })
 
   it('filters transactions by search query', async () => {
-    render(<TransactionsPage />)
+    renderTransactionsPage()
     expect(screen.getByText('STARBUCKS 001')).toBeInTheDocument()
 
     const user = userEvent.setup()
@@ -122,14 +133,14 @@ describe('ui flows', () => {
 
   it('opens details drawer when a row is clicked', async () => {
     const user = userEvent.setup()
-    render(<TransactionsPage />)
+    renderTransactionsPage()
     await user.click(screen.getByText('STARBUCKS 001'))
     expect(screen.getByText('Save overrides')).toBeInTheDocument()
   })
 
   it('resets filters from toolbar control', async () => {
     const user = userEvent.setup()
-    render(<TransactionsPage />)
+    renderTransactionsPage()
     const search = screen.getByPlaceholderText('Search merchant, note, reference...')
     await user.type(search, 'abc')
     expect((search as HTMLInputElement).value).toBe('abc')

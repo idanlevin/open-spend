@@ -30,7 +30,8 @@ export function applyTransactionFilters(
     if (filters.maxAmount !== undefined && tx.amount > filters.maxAmount) return false
     if (filters.uncategorizedOnly && tx.categoryFinalName !== 'Uncategorized') return false
     if (filters.excludedOnly && !tx.isExcludedFromAnalytics) return false
-    if (filters.refundsOnly && tx.amount >= 0) return false
+    if (filters.refundsOnly && !tx.isRefund) return false
+    if (filters.paymentsOnly && !tx.isPayment) return false
     if (filters.businessOnly && !tx.isBusiness) return false
     if (filters.reimbursableOnly && !tx.isReimbursable) return false
     return true

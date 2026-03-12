@@ -1,4 +1,5 @@
 import { normalizeMerchantName } from '@/lib/normalization/merchant'
+import { classifyTransactionKind } from '@/lib/normalization/transaction-kind'
 import { normalizeText, nowIso, sha256Hex } from '@/lib/utils'
 import type { CategoryAlias, TransactionNormalized } from '@/types/domain'
 import type { ParsedTransactionRow } from '@/lib/parsing/types'
@@ -30,6 +31,12 @@ export async function normalizeTransaction(input: NormalizeInput): Promise<Trans
   const merchantNormalized = normalizeMerchantName(input.row.merchantRaw || input.row.descriptionRaw)
   const categoryIdResolved = resolveCategoryId(input.row.amexCategoryRaw, input.categoryAliases)
   const sourceRowFingerprint = await buildTransactionFingerprint(input)
+  const transactionKind = classifyTransactionKind({
+    amount: input.row.amount,
+    descriptionRaw: input.row.descriptionRaw,
+    statementDescriptor: input.row.statementDescriptor,
+    amexCategoryRaw: input.row.amexCategoryRaw,
+  })
 
   return {
     transactionId: `txn_${sourceRowFingerprint}`,
@@ -53,8 +60,10 @@ export async function normalizeTransaction(input: NormalizeInput): Promise<Trans
     reference: input.row.reference,
     amexCategoryRaw: input.row.amexCategoryRaw,
     categoryIdResolved,
+    transactionKind,
     isCredit: input.row.amount < 0,
-    isRefund: input.row.amount < 0 || /refund|credit|return/i.test(input.row.descriptionRaw),
+    isRefund: transactionKind === 'refund',
+    isPayment: transactionKind === 'payment',
     isPendingLike: /pending/i.test(input.row.descriptionRaw),
     duplicateGroupKey: sourceRowFingerprint.slice(0, 16),
     sourceRowFingerprint,

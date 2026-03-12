@@ -12,12 +12,14 @@ export function StatementsPage() {
     return workspace.statements.map((statement) => {
       const scoped = workspace.transactions.filter((tx) => tx.statementId === statement.statementId)
       const totalDebits = scoped.filter((tx) => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0)
-      const totalCredits = scoped.filter((tx) => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0)
+      const totalRefunds = scoped.filter((tx) => tx.isRefund).reduce((sum, tx) => sum + tx.amount, 0)
+      const totalPayments = scoped.filter((tx) => tx.isPayment).reduce((sum, tx) => sum + tx.amount, 0)
       return {
         statement,
         count: scoped.length,
         totalDebits,
-        totalCredits,
+        totalRefunds,
+        totalPayments,
       }
     })
   }, [workspace.statements, workspace.transactions])
@@ -30,7 +32,7 @@ export function StatementsPage() {
         icon={Files}
       />
       <div className="grid gap-4 p-6 lg:grid-cols-2">
-        {byStatement.map(({ statement, count, totalDebits, totalCredits }) => (
+        {byStatement.map(({ statement, count, totalDebits, totalRefunds, totalPayments }) => (
           <Card key={statement.statementId}>
             <CardTitle>
               {statement.statementStartDate} - {statement.statementEndDate}
@@ -54,10 +56,12 @@ export function StatementsPage() {
                 <p className="text-sm font-semibold">{amountToCurrency(totalDebits)}</p>
               </div>
               <div className="rounded-md bg-slate-50 p-2">
-                <p className="text-slate-500">Credits</p>
-                <p className="text-sm font-semibold text-emerald-700">
-                  {amountToCurrency(totalCredits)}
-                </p>
+                <p className="text-slate-500">Refunds</p>
+                <p className="text-sm font-semibold text-emerald-700">{amountToCurrency(totalRefunds)}</p>
+              </div>
+              <div className="rounded-md bg-slate-50 p-2">
+                <p className="text-slate-500">Payments</p>
+                <p className="text-sm font-semibold text-emerald-700">{amountToCurrency(totalPayments)}</p>
               </div>
             </div>
             <div className="mt-3 text-xs text-slate-500">Parse version: {statement.parseVersion}</div>

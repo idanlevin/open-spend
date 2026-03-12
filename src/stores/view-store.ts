@@ -14,6 +14,7 @@ export interface TransactionFilters {
   uncategorizedOnly: boolean
   excludedOnly: boolean
   refundsOnly: boolean
+  paymentsOnly: boolean
   businessOnly: boolean
   reimbursableOnly: boolean
   groupBy: GroupByOption
@@ -35,6 +36,7 @@ const defaultFilters: TransactionFilters = {
   uncategorizedOnly: false,
   excludedOnly: false,
   refundsOnly: false,
+  paymentsOnly: false,
   businessOnly: false,
   reimbursableOnly: false,
   groupBy: 'none',
