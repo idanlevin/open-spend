@@ -7,6 +7,9 @@ import type {
   Category,
   CategoryAlias,
   EnrichedTransaction,
+  RecurringCategoryOverrideMap,
+  RecurringDecision,
+  RecurringDecisionMap,
   Rule,
   Statement,
   Tag,
@@ -21,6 +24,116 @@ export interface WorkspaceSnapshot {
   categories: Category[]
   tags: Tag[]
   rules: Rule[]
+  recurringDecisions: RecurringDecisionMap
+  recurringCategoryOverrides: RecurringCategoryOverrideMap
+}
+
+const RECURRING_DECISIONS_KEY = 'recurring.decisions.v1'
+const RECURRING_CATEGORY_OVERRIDES_KEY = 'recurring.category-overrides.v1'
+
+export function normalizeRecurringDecisionKey(merchant: string): string {
+  return merchant.trim().toLowerCase()
+}
+
+function normalizeRecurringDecisionMap(raw: unknown): RecurringDecisionMap {
+  if (!raw || typeof raw !== 'object') return {}
+  const entries = Object.entries(raw as Record<string, unknown>).flatMap(([key, value]) => {
+    if (!value || typeof value !== 'object') return []
+    const candidate = value as Partial<{ decision: RecurringDecision; updatedAt: string }>
+    if (candidate.decision !== 'confirmed' && candidate.decision !== 'ignored') return []
+    const normalizedKey = normalizeRecurringDecisionKey(key)
+    if (!normalizedKey) return []
+    return [
+      [
+        normalizedKey,
+        {
+          decision: candidate.decision,
+          updatedAt:
+            typeof candidate.updatedAt === 'string' ? candidate.updatedAt : new Date().toISOString(),
+        },
+      ] satisfies [string, RecurringDecisionMap[string]],
+    ]
+  })
+  return Object.fromEntries(entries)
+}
+
+export async function loadRecurringDecisions(): Promise<RecurringDecisionMap> {
+  const row = await db.appSettings.get(RECURRING_DECISIONS_KEY)
+  if (!row) return {}
+  try {
+    return normalizeRecurringDecisionMap(JSON.parse(row.value))
+  } catch {
+    return {}
+  }
+}
+
+export async function setRecurringMerchantDecision(
+  merchant: string,
+  decision: RecurringDecision | null,
+): Promise<void> {
+  const key = normalizeRecurringDecisionKey(merchant)
+  if (!key) return
+  const current = await loadRecurringDecisions()
+  if (decision == null) {
+    delete current[key]
+  } else {
+    current[key] = {
+      decision,
+      updatedAt: new Date().toISOString(),
+    }
+  }
+  if (Object.keys(current).length === 0) {
+    await db.appSettings.delete(RECURRING_DECISIONS_KEY)
+    return
+  }
+  await db.appSettings.put({
+    key: RECURRING_DECISIONS_KEY,
+    value: JSON.stringify(current),
+  })
+}
+
+function normalizeRecurringCategoryOverrideMap(raw: unknown): RecurringCategoryOverrideMap {
+  if (!raw || typeof raw !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).flatMap(([key, value]) => {
+      const normalizedKey = normalizeRecurringDecisionKey(key)
+      if (!normalizedKey) return []
+      if (typeof value !== 'string' || value.trim().length === 0) return []
+      return [[normalizedKey, value]]
+    }),
+  )
+}
+
+export async function loadRecurringCategoryOverrides(): Promise<RecurringCategoryOverrideMap> {
+  const row = await db.appSettings.get(RECURRING_CATEGORY_OVERRIDES_KEY)
+  if (!row) return {}
+  try {
+    return normalizeRecurringCategoryOverrideMap(JSON.parse(row.value))
+  } catch {
+    return {}
+  }
+}
+
+export async function setRecurringMerchantCategoryOverride(
+  merchant: string,
+  categoryId: string | null,
+): Promise<void> {
+  const key = normalizeRecurringDecisionKey(merchant)
+  if (!key) return
+  const current = await loadRecurringCategoryOverrides()
+  if (!categoryId) {
+    delete current[key]
+  } else {
+    current[key] = categoryId
+  }
+  if (Object.keys(current).length === 0) {
+    await db.appSettings.delete(RECURRING_CATEGORY_OVERRIDES_KEY)
+    return
+  }
+  await db.appSettings.put({
+    key: RECURRING_CATEGORY_OVERRIDES_KEY,
+    value: JSON.stringify(current),
+  })
 }
 
 export async function initializeWorkspace(): Promise<void> {
@@ -80,7 +193,18 @@ function applyOverrides(
 }
 
 export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
-  const [transactions, overrides, categories, tags, links, statements, rules] = await Promise.all([
+  const [
+    transactions,
+    overrides,
+    categories,
+    tags,
+    links,
+    statements,
+    rules,
+    recurringDecisions,
+    recurringCategoryOverrides,
+  ] =
+    await Promise.all([
     db.transactionsNormalized.toArray(),
     db.transactionOverrides.toArray(),
     db.categories.orderBy('sortOrder').toArray(),
@@ -88,7 +212,9 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
     db.transactionTags.toArray(),
     db.statements.orderBy('statementEndDate').reverse().toArray(),
     db.rules.orderBy('priority').toArray(),
-  ])
+      loadRecurringDecisions(),
+      loadRecurringCategoryOverrides(),
+    ])
 
   const overrideById = new Map(overrides.map((override) => [override.transactionId, override]))
   const categoryById = new Map(categories.map((category) => [category.categoryId, category]))
@@ -116,6 +242,8 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
     categories,
     tags,
     rules,
+    recurringDecisions,
+    recurringCategoryOverrides,
   }
 }
 

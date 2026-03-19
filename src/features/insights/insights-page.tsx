@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import type { ColumnDef } from '@tanstack/react-table'
 import {
   Area,
   AreaChart,
@@ -14,13 +13,10 @@ import {
 import { LineChart } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
-import { AdvancedDataTable } from '@/components/ui/advanced-data-table'
 import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 import { amountToCurrency } from '@/lib/utils'
-import { recurringCandidates, spendOverTime, topByDimension } from '@/lib/analytics/metrics'
-
-type RecurringCandidate = ReturnType<typeof recurringCandidates>[number]
+import { spendOverTime, topByDimension } from '@/lib/analytics/metrics'
 
 export function InsightsPage() {
   const workspace = useWorkspace()
@@ -37,30 +33,6 @@ export function InsightsPage() {
   const cardholders = useMemo(
     () => topByDimension(scopedTransactions, 'cardMember', 10),
     [scopedTransactions],
-  )
-  const recurring = useMemo(() => recurringCandidates(scopedTransactions), [scopedTransactions])
-  const recurringColumns = useMemo<ColumnDef<RecurringCandidate, unknown>[]>(
-    () => [
-      {
-        accessorKey: 'merchant',
-        header: 'Merchant',
-      },
-      {
-        accessorKey: 'occurrences',
-        header: 'Occurrences',
-      },
-      {
-        accessorKey: 'averageAmount',
-        header: 'Avg amount',
-        cell: ({ row }) => amountToCurrency(row.original.averageAmount),
-      },
-      {
-        accessorKey: 'confidence',
-        header: 'Confidence',
-        cell: ({ row }) => `${Math.round(row.original.confidence * 100)}%`,
-      },
-    ],
-    [],
   )
 
   return (
@@ -131,20 +103,6 @@ export function InsightsPage() {
             </div>
           </Card>
         </div>
-        <Card>
-          <CardTitle>Recurring charge candidates</CardTitle>
-          <CardDescription>Heuristic detections based on repeated merchant + amount behavior.</CardDescription>
-          <div className="mt-3">
-            <AdvancedDataTable
-              tableId="insights-recurring-candidates"
-              data={recurring}
-              columns={recurringColumns}
-              getRowId={(row) => row.merchant}
-              defaultSorting={[{ id: 'confidence', desc: true }]}
-              emptyMessage="No recurring charge patterns were detected yet."
-            />
-          </div>
-        </Card>
       </div>
     </div>
   )

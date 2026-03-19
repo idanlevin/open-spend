@@ -74,6 +74,7 @@ interface AdvancedDataTableProps<TData extends object> {
   getRowId?: (originalRow: TData, index: number, parent?: Row<TData>) => string
   onRowClick?: (row: TData) => void
   isRowActive?: (row: TData) => boolean
+  activeRowClassName?: string
   emptyMessage?: string
   className?: string
   pageSize?: number
@@ -459,6 +460,7 @@ export function AdvancedDataTable<TData extends object>({
   getRowId,
   onRowClick,
   isRowActive,
+  activeRowClassName,
   emptyMessage = 'No rows to display.',
   className,
   pageSize = DEFAULT_PAGE_SIZE,
@@ -926,7 +928,7 @@ export function AdvancedDataTable<TData extends object>({
         className="min-h-[420px] max-h-[70vh] overflow-auto rounded-2xl border border-(--card-border)"
       >
         <table className="min-w-full border-collapse table-fixed text-sm" style={{ width: table.getTotalSize() }}>
-          <thead className="sticky top-0 z-10 bg-linear-to-r from-violet-100/90 to-sky-100/90 backdrop-blur">
+          <thead className="bg-violet-100">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
@@ -957,7 +959,7 @@ export function AdvancedDataTable<TData extends object>({
                   return (
                     <th
                       key={header.id}
-                      className="relative border-b border-slate-200 px-2 py-2 text-left"
+                      className="sticky top-0 z-10 border-b border-slate-200 bg-violet-100 px-2 py-2 text-left"
                       style={{ width: header.getSize() }}
                     >
                       {header.isPlaceholder ? null : (
@@ -1180,7 +1182,7 @@ export function AdvancedDataTable<TData extends object>({
                   className={cn(
                     'border-b border-slate-100',
                     onRowClick ? 'cursor-pointer hover:bg-slate-50' : '',
-                    isRowActive?.(row.original) ? 'bg-violet-50/70' : '',
+                    isRowActive?.(row.original) ? (activeRowClassName ?? 'bg-violet-50/70') : '',
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (

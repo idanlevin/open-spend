@@ -1,13 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, Store } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 import { amountToCurrency } from '@/lib/utils'
+
+function merchantKey(value: string): string {
+  return value.trim().toLowerCase()
+}
 
 export function MerchantsPage() {
   const navigate = useNavigate()
@@ -16,6 +21,7 @@ export function MerchantsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedMerchant, setSelectedMerchant] = useState<string>('')
   const [renameTo, setRenameTo] = useState('')
+  const [recurringCategoryOverride, setRecurringCategoryOverride] = useState('')
 
   const merchantStats = useMemo(() => {
     const map = new Map<
@@ -54,6 +60,13 @@ export function MerchantsPage() {
   const active =
     merchantStats.find((row) => row.merchant === selectedMerchantResolved) ?? merchantStats[0]
   const renameValue = renameTo || active?.merchant || ''
+  const activeRecurringCategoryOverride = active
+    ? workspace.recurringCategoryOverrides[merchantKey(active.merchant)] ?? ''
+    : ''
+
+  useEffect(() => {
+    setRecurringCategoryOverride(activeRecurringCategoryOverride)
+  }, [activeRecurringCategoryOverride])
 
   return (
     <div>
@@ -134,6 +147,49 @@ export function MerchantsPage() {
                     }}
                   >
                     Save
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 text-slate-500">Recurring category override</p>
+                <CardDescription className="mb-2 text-xs">
+                  Used by the Recurring page. Leave on auto-detect to use the model&apos;s inferred category.
+                </CardDescription>
+                <div className="flex gap-2">
+                  <Select
+                    value={recurringCategoryOverride}
+                    onChange={(event) => setRecurringCategoryOverride(event.target.value)}
+                  >
+                    <option value="">Auto-detect from recurring transactions</option>
+                    {workspace.categories.map((category) => (
+                      <option key={category.categoryId} value={category.categoryId}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      if (!active) return
+                      await workspace.updateRecurringCategoryOverride(
+                        active.merchant,
+                        recurringCategoryOverride || null,
+                      )
+                    }}
+                    disabled={!active || recurringCategoryOverride === activeRecurringCategoryOverride}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={async () => {
+                      if (!active) return
+                      setRecurringCategoryOverride('')
+                      await workspace.updateRecurringCategoryOverride(active.merchant, null)
+                    }}
+                    disabled={!active || !activeRecurringCategoryOverride}
+                  >
+                    Clear
                   </Button>
                 </div>
               </div>
