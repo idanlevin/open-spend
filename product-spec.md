@@ -764,21 +764,60 @@ Examples:
 
 ### Goals
 
-* Detect subscriptions and repeated bills
+* Detect subscriptions and repeated bills with high recall and low noise
+* Help users understand **monthly-equivalent** commitments at a glance
+* Support curation workflows (confirm / ignore) so results improve over time
 
 ### Detection heuristics
 
-* Similar merchant
-* Similar amount or bounded variance
-* Roughly monthly cadence
+* Group by normalized merchant (preserve raw rows for drill-down)
+* Include only charge-like transactions (exclude payments/refunds and analytics-excluded rows)
+* Require minimum repeated occurrences (default: 3+) and a valid recurring cadence signal
+* Cadence-first detection over interval gaps between charges:
+
+  * weekly
+  * biweekly
+  * monthly
+  * quarterly
+  * annual
+* Amount consistency contributes to confidence but does **not** dominate classification
+* Compute normalized monthly-equivalent amount for every candidate:
+
+  * weekly: amount x 52 / 12
+  * biweekly: amount x 26 / 12
+  * monthly: amount
+  * quarterly: amount / 3
+  * annual: amount / 12
+* Derive status:
+
+  * active
+  * new
+  * possibly cancelled (stale compared to expected next charge date)
 
 ### Features
 
 * Candidate recurring charges list
-* Confidence score
+* Confidence score + cadence label
+* Last amount, median amount, next expected charge date
+* Monthly-equivalent sorting and filtering
+* Summary cards:
+
+  * monthly recurring total
+  * annual run-rate
+  * active recurring count
+  * stale/possibly-cancelled count
+  * recent price increases
 * Mark as subscription / not subscription
 * Filter active vs stale recurring charges
-* Estimate monthly subscription total
+* Filter by category, cardholder, cadence, confidence threshold, and monthly-equivalent floor
+* Estimate monthly subscription total and category-level monthly breakdown
+* Row detail panel with matched transactions and quick jump to Transactions page
+
+### User feedback loop and persistence
+
+* Confirmed/ignored decisions are persisted locally
+* Ignored candidates are hidden by default but can be shown with filters
+* Decisions are reversible
 
 ---
 
@@ -877,6 +916,7 @@ Examples:
 
 * Internal reimbursements
 * Credits and statement adjustments
+* User-ignored recurring candidates (without mutating underlying transactions)
 * Temporary personal loan repayment
 
 ## 10.6 Refund and credit handling
@@ -1214,10 +1254,40 @@ Additional required columns:
 
 ### Components
 
-* Detection summary cards
-* Candidates table
-* Subscription detail drawer
-* Ignore/confirm actions
+* Detection summary cards (monthly total, annual run-rate, active/stale counts, price-change alerts)
+* Filters row:
+
+  * merchant search
+  * category
+  * cardholder
+  * cadence
+  * status
+  * confidence threshold
+  * minimum monthly-equivalent amount
+  * decision state (all / undecided / confirmed / ignored)
+* Candidates table with columns:
+
+  * merchant
+  * category
+  * card holder
+  * cadence
+  * occurrences
+  * last amount
+  * monthly equivalent
+  * last charge
+  * next expected
+  * status
+  * confidence
+  * decision
+  * actions
+* Subscription detail drawer/panel:
+
+  * cadence and amount profile
+  * status badges
+  * matched transactions history
+  * jump to Transactions page for full inspection
+* Ignore/confirm actions with reversible state
+* Monthly-equivalent by category breakdown card
 
 ---
 
@@ -1391,7 +1461,9 @@ Support multiple local workspaces, e.g.:
 * monthly trend slope
 * category growth/decline
 * first-time merchants
-* recurring candidates
+* recurring candidates (cadence + confidence)
+* recurring monthly-equivalent totals (overall + by category/cardholder)
+* recurring status monitoring (active/new/possibly cancelled)
 * unusually large charges
 * category/categoryholder anomalies
 

@@ -208,6 +208,17 @@ export interface AppSetting {
   value: string
 }
 
+export type RecurringDecision = 'confirmed' | 'ignored'
+
+export interface RecurringDecisionEntry {
+  decision: RecurringDecision
+  updatedAt: string
+}
+
+export type RecurringDecisionMap = Record<string, RecurringDecisionEntry>
+
+export type RecurringCategoryOverrideMap = Record<string, string>
+
 export interface AuditLog {
   id: UUID
   eventType: string

@@ -5,6 +5,7 @@ import { DashboardPage } from '@/features/dashboard/dashboard-page'
 import { InsightsPage } from '@/features/insights/insights-page'
 import { MerchantsPage } from '@/features/merchants/merchants-page'
 import { PaymentsPage } from '@/features/payments/payments-page'
+import { RecurringPage } from '@/features/recurring/recurring-page'
 import { ReviewPage } from '@/features/review/review-page'
 import { RulesPage } from '@/features/rules/rules-page'
 import { SettingsPage } from '@/features/settings/settings-page'
@@ -32,6 +33,10 @@ export const router = createBrowserRouter([
       {
         path: 'insights',
         element: <InsightsPage />,
+      },
+      {
+        path: 'recurring',
+        element: <RecurringPage />,
       },
       {
         path: 'statements',

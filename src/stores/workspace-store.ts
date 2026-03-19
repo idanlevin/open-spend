@@ -5,6 +5,8 @@ import {
   createTag,
   initializeWorkspace,
   loadWorkspaceSnapshot,
+  setRecurringMerchantCategoryOverride,
+  setRecurringMerchantDecision,
   renameMerchantEverywhere,
   setTransactionTags,
   upsertCategoryAlias,
@@ -12,7 +14,16 @@ import {
   upsertRule,
   upsertTransactionOverride,
 } from '@/lib/storage/workspace-service'
-import type { Category, EnrichedTransaction, Rule, Statement, Tag } from '@/types/domain'
+import type {
+  Category,
+  EnrichedTransaction,
+  RecurringCategoryOverrideMap,
+  RecurringDecision,
+  RecurringDecisionMap,
+  Rule,
+  Statement,
+  Tag,
+} from '@/types/domain'
 
 interface WorkspaceState {
   initialized: boolean
@@ -23,6 +34,8 @@ interface WorkspaceState {
   categories: Category[]
   tags: Tag[]
   rules: Rule[]
+  recurringDecisions: RecurringDecisionMap
+  recurringCategoryOverrides: RecurringCategoryOverrideMap
   latestImport?: ImportSummary
   initialize: () => Promise<void>
   refresh: () => Promise<void>
@@ -44,6 +57,8 @@ interface WorkspaceState {
   renameCategory: (categoryId: string, name: string) => Promise<void>
   renameMerchant: (merchantRaw: string, merchantNormalized: string) => Promise<void>
   saveRule: (rule: Rule) => Promise<void>
+  updateRecurringDecision: (merchant: string, decision: RecurringDecision | null) => Promise<void>
+  updateRecurringCategoryOverride: (merchant: string, categoryId: string | null) => Promise<void>
   clearWorkspace: () => Promise<void>
 }
 
@@ -55,6 +70,8 @@ async function reloadData(set: (partial: Partial<WorkspaceState>) => void): Prom
     categories: snapshot.categories,
     tags: snapshot.tags,
     rules: snapshot.rules,
+    recurringDecisions: snapshot.recurringDecisions,
+    recurringCategoryOverrides: snapshot.recurringCategoryOverrides,
   })
 }
 
@@ -66,6 +83,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   categories: [],
   tags: [],
   rules: [],
+  recurringDecisions: {},
+  recurringCategoryOverrides: {},
   initialize: async () => {
     set({ loading: true, error: undefined })
     try {
@@ -125,6 +144,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   },
   saveRule: async (rule) => {
     await upsertRule(rule)
+    await reloadData(set)
+  },
+  updateRecurringDecision: async (merchant, decision) => {
+    await setRecurringMerchantDecision(merchant, decision)
+    await reloadData(set)
+  },
+  updateRecurringCategoryOverride: async (merchant, categoryId) => {
+    await setRecurringMerchantCategoryOverride(merchant, categoryId)
     await reloadData(set)
   },
   clearWorkspace: async () => {
