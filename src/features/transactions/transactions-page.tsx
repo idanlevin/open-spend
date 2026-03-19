@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { endOfMonth, format, parse } from 'date-fns'
+import { parse } from 'date-fns'
 import { type ColumnDef, type GroupingState } from '@tanstack/react-table'
-import { Download, FilterX, TableProperties } from 'lucide-react'
+import { Download, TableProperties } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
@@ -12,8 +12,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 import { useViewStore, type GroupByOption } from '@/stores/view-store'
+import { useTimeRangeStore } from '@/stores/time-range-store'
 import type { EnrichedTransaction } from '@/types/domain'
 import { amountToCurrency } from '@/lib/utils'
 import { applyTransactionFilters } from '@/lib/analytics/filtering'
@@ -23,15 +25,21 @@ export function TransactionsPage() {
   const [searchParams] = useSearchParams()
   const workspace = useWorkspace()
   const { filters, setFilters, resetFilters } = useViewStore()
+  const setGlobalTimeMode = useTimeRangeStore((state) => state.setMode)
+  const patchGlobalTime = useTimeRangeStore((state) => state.patch)
+  const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedRows, setSelectedRows] = useState<EnrichedTransaction[]>([])
   const [selectionResetToken, setSelectionResetToken] = useState(0)
   const [grouping, setGrouping] = useState<GroupingState>([])
   const [bulkCategory, setBulkCategory] = useState('')
+  const [bulkTagId, setBulkTagId] = useState('')
+  const [showBulkActions, setShowBulkActions] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const filteredRows = useMemo(
-    () => applyTransactionFilters(workspace.transactions, filters),
-    [workspace.transactions, filters],
+    () => applyTransactionFilters(scopedTransactions, { ...filters, startDate: '', endDate: '' }),
+    [filters, scopedTransactions],
   )
 
   const columns = useMemo<ColumnDef<EnrichedTransaction>[]>(
@@ -105,8 +113,8 @@ export function TransactionsPage() {
   )
 
   const selectedTransaction = useMemo(
-    () => workspace.transactions.find((tx) => tx.transactionId === selectedId),
-    [workspace.transactions, selectedId],
+    () => filteredRows.find((tx) => tx.transactionId === selectedId),
+    [filteredRows, selectedId],
   )
 
   const selectedCount = selectedRows.length
@@ -118,6 +126,40 @@ export function TransactionsPage() {
     setSelectedRows([])
     setSelectionResetToken((value) => value + 1)
   }
+
+  const applyBulkTag = async () => {
+    if (!bulkTagId || selectedRows.length === 0) return
+    await Promise.all(
+      selectedRows.map((row) =>
+        workspace.updateTags(
+          row.transactionId,
+          Array.from(new Set([...row.tags.map((tag) => tag.tagId), bulkTagId])),
+        ),
+      ),
+    )
+    setBulkTagId('')
+    setSelectedRows([])
+    setSelectionResetToken((value) => value + 1)
+  }
+
+  const exportRows = selectedCount > 0 ? selectedRows : filteredRows
+
+  const handleExport = (format: 'csv' | 'xlsx') => {
+    if (format === 'csv') {
+      exportTransactionsCsv(exportRows, selectedCount > 0 ? 'transactions-selected.csv' : 'transactions.csv')
+    } else {
+      exportTransactionsXlsx(
+        exportRows,
+        selectedCount > 0 ? 'transactions-selected.xlsx' : 'transactions-cleaned.xlsx',
+      )
+    }
+    setShowExportMenu(false)
+  }
+
+  useEffect(() => {
+    if (selectedCount > 0) return
+    setShowBulkActions(false)
+  }, [selectedCount])
 
   const setGroupBy = (next: GroupByOption) => {
     setFilters({ groupBy: next })
@@ -136,6 +178,7 @@ export function TransactionsPage() {
   }
 
   useEffect(() => {
+    resetFilters()
     if ([...searchParams.keys()].length === 0) return
 
     const patch: Parameters<typeof setFilters>[0] = {}
@@ -153,12 +196,16 @@ export function TransactionsPage() {
     if (monthParam) {
       const monthDate = parse(monthParam, 'yyyy-MM', new Date())
       if (!Number.isNaN(monthDate.getTime())) {
-        patch.startDate = format(monthDate, 'yyyy-MM-01')
-        patch.endDate = format(endOfMonth(monthDate), 'yyyy-MM-dd')
+        setGlobalTimeMode('month')
+        patchGlobalTime({ month: monthParam })
       }
+    } else if (startDateParam || endDateParam) {
+      setGlobalTimeMode('custom')
+      patchGlobalTime({
+        customStartDate: startDateParam ?? '',
+        customEndDate: endDateParam ?? '',
+      })
     }
-    if (startDateParam) patch.startDate = startDateParam
-    if (endDateParam) patch.endDate = endDateParam
     if (merchantParam) patch.merchants = [merchantParam]
     if (queryParam) patch.query = queryParam
     if (uncategorizedOnlyParam === 'true') patch.uncategorizedOnly = true
@@ -179,9 +226,15 @@ export function TransactionsPage() {
       if (category) patch.categoryIds = [category.categoryId]
     }
 
-    resetFilters()
     setFilters(patch)
-  }, [resetFilters, searchParams, setFilters, workspace.categories])
+  }, [
+    patchGlobalTime,
+    resetFilters,
+    searchParams,
+    setFilters,
+    setGlobalTimeMode,
+    workspace.categories,
+  ])
 
   return (
     <div>
@@ -189,177 +242,8 @@ export function TransactionsPage() {
         title="Transactions explorer"
         subtitle="Filter, group, edit, and export enriched transactions."
         icon={TableProperties}
-        actions={
-          <>
-            <Button variant="secondary" onClick={() => exportTransactionsCsv(filteredRows)}>
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
-            <Button variant="secondary" onClick={() => exportTransactionsXlsx(filteredRows)}>
-              <Download className="mr-2 h-4 w-4" />
-              Export XLSX
-            </Button>
-          </>
-        }
       />
       <div className="flex gap-4 p-6">
-        <div className="w-[260px] shrink-0 space-y-3">
-          <Card>
-            <CardTitle>Filters</CardTitle>
-            <CardDescription>Current view controls</CardDescription>
-            <div className="mt-3 space-y-2">
-              <Input
-                placeholder="Search merchant, note, reference..."
-                value={filters.query}
-                onChange={(event) => setFilters({ query: event.target.value })}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(event) => setFilters({ startDate: event.target.value })}
-                />
-                <Input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(event) => setFilters({ endDate: event.target.value })}
-                />
-              </div>
-              <Select
-                value={filters.groupBy}
-                onChange={(event) => setGroupBy(event.target.value as GroupByOption)}
-              >
-                <option value="none">No grouping</option>
-                <option value="category">Group by category</option>
-                <option value="merchant">Group by merchant</option>
-                <option value="cardMember">Group by cardholder</option>
-                <option value="statement">Group by statement</option>
-                <option value="month">Group by month</option>
-              </Select>
-              <Select
-                value={filters.categoryIds[0] || ''}
-                onChange={(event) =>
-                  setFilters({
-                    categoryIds: event.target.value ? [event.target.value] : [],
-                  })
-                }
-              >
-                <option value="">All categories</option>
-                {workspace.categories.map((category) => (
-                  <option key={category.categoryId} value={category.categoryId}>
-                    {category.name}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                value={filters.cardholders[0] || ''}
-                onChange={(event) =>
-                  setFilters({
-                    cardholders: event.target.value ? [event.target.value] : [],
-                  })
-                }
-              >
-                <option value="">All cardholders</option>
-                {workspace.cardholderOptions.map((cardholder) => (
-                  <option key={cardholder} value={cardholder}>
-                    {cardholder}
-                  </option>
-                ))}
-              </Select>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  type="number"
-                  placeholder="Min"
-                  value={filters.minAmount ?? ''}
-                  onChange={(event) =>
-                    setFilters({
-                      minAmount: event.target.value ? Number(event.target.value) : undefined,
-                    })
-                  }
-                />
-                <Input
-                  type="number"
-                  placeholder="Max"
-                  value={filters.maxAmount ?? ''}
-                  onChange={(event) =>
-                    setFilters({
-                      maxAmount: event.target.value ? Number(event.target.value) : undefined,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-1 text-sm">
-                <label className="flex items-center gap-2">
-                  <Checkbox
-                    checked={filters.uncategorizedOnly}
-                    onChange={(event) => setFilters({ uncategorizedOnly: event.target.checked })}
-                  />
-                  Uncategorized only
-                </label>
-                <label className="flex items-center gap-2">
-                  <Checkbox
-                    checked={filters.excludedOnly}
-                    onChange={(event) => setFilters({ excludedOnly: event.target.checked })}
-                  />
-                  Excluded only
-                </label>
-                <label className="flex items-center gap-2">
-                  <Checkbox
-                    checked={filters.refundsOnly}
-                    onChange={(event) =>
-                      setFilters({ refundsOnly: event.target.checked, paymentsOnly: false })
-                    }
-                  />
-                  Refunds only
-                </label>
-                <label className="flex items-center gap-2">
-                  <Checkbox
-                    checked={filters.paymentsOnly}
-                    onChange={(event) =>
-                      setFilters({ paymentsOnly: event.target.checked, refundsOnly: false })
-                    }
-                  />
-                  Payments only
-                </label>
-                <label className="flex items-center gap-2">
-                  <Checkbox
-                    checked={filters.businessOnly}
-                    onChange={(event) => setFilters({ businessOnly: event.target.checked })}
-                  />
-                  Business only
-                </label>
-                <label className="flex items-center gap-2">
-                  <Checkbox
-                    checked={filters.reimbursableOnly}
-                    onChange={(event) => setFilters({ reimbursableOnly: event.target.checked })}
-                  />
-                  Reimbursable only
-                </label>
-              </div>
-              <Button variant="ghost" className="w-full" onClick={resetFilters}>
-                <FilterX className="mr-2 h-4 w-4" />
-                Reset filters
-              </Button>
-            </div>
-          </Card>
-          <Card>
-            <CardTitle>Bulk actions</CardTitle>
-            <CardDescription>{selectedCount} selected</CardDescription>
-            <div className="mt-3 space-y-2">
-              <Select value={bulkCategory} onChange={(event) => setBulkCategory(event.target.value)}>
-                <option value="">Set category...</option>
-                {workspace.categories.map((category) => (
-                  <option key={category.categoryId} value={category.categoryId}>
-                    {category.name}
-                  </option>
-                ))}
-              </Select>
-              <Button className="w-full" onClick={applyBulkCategory} disabled={!bulkCategory || selectedCount === 0}>
-                Apply category to selected
-              </Button>
-            </div>
-          </Card>
-        </div>
         <Card className="min-w-0 flex-1 overflow-hidden p-0">
           <div className="p-3">
             <AdvancedDataTable
@@ -377,6 +261,102 @@ export function TransactionsPage() {
               onRowClick={(row) => setSelectedId(row.transactionId)}
               isRowActive={(row) => row.transactionId === selectedId}
               emptyMessage="No transactions match the current filters."
+              toolbarActions={
+                <>
+                  <Select
+                    className="h-8 w-[180px]"
+                    value={filters.groupBy}
+                    onChange={(event) => setGroupBy(event.target.value as GroupByOption)}
+                  >
+                    <option value="none">No grouping</option>
+                    <option value="category">Group by category</option>
+                    <option value="merchant">Group by merchant</option>
+                    <option value="cardMember">Group by cardholder</option>
+                    <option value="statement">Group by statement</option>
+                    <option value="month">Group by month</option>
+                  </Select>
+                  {selectedCount > 0 ? (
+                    <div className="relative">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShowBulkActions((current) => !current)}
+                      >
+                        Bulk actions ({selectedCount})
+                      </Button>
+                      {showBulkActions ? (
+                        <div className="absolute top-[calc(100%+6px)] right-0 z-20 w-[290px] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                          <CardTitle>Bulk actions</CardTitle>
+                          <CardDescription>{selectedCount} selected</CardDescription>
+                          <div className="mt-2 space-y-2">
+                            <Select value={bulkCategory} onChange={(event) => setBulkCategory(event.target.value)}>
+                              <option value="">Set category...</option>
+                              {workspace.categories.map((category) => (
+                                <option key={category.categoryId} value={category.categoryId}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </Select>
+                            <Button
+                              className="w-full"
+                              onClick={applyBulkCategory}
+                              disabled={!bulkCategory || selectedCount === 0}
+                            >
+                              Apply category to selected
+                            </Button>
+                            <Select value={bulkTagId} onChange={(event) => setBulkTagId(event.target.value)}>
+                              <option value="">Add tag...</option>
+                              {workspace.tags.map((tag) => (
+                                <option key={tag.tagId} value={tag.tagId}>
+                                  {tag.name}
+                                </option>
+                              ))}
+                            </Select>
+                            <Button className="w-full" onClick={applyBulkTag} disabled={!bulkTagId || selectedCount === 0}>
+                              Add tag to selected
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="relative">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowExportMenu((current) => !current)}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      {selectedCount > 0 ? 'Export selected' : 'Export'}
+                    </Button>
+                    {showExportMenu ? (
+                      <div className="absolute top-[calc(100%+6px)] right-0 z-20 w-[200px] rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+                        <p className="px-2 pb-1 text-xs font-medium text-slate-500">Choose file format</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start"
+                          onClick={() => handleExport('csv')}
+                        >
+                          Export as CSV
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start"
+                          onClick={() => handleExport('xlsx')}
+                        >
+                          Export as XLSX
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              }
             />
           </div>
         </Card>

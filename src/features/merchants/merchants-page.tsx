@@ -5,12 +5,14 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 import { amountToCurrency } from '@/lib/utils'
 
 export function MerchantsPage() {
   const navigate = useNavigate()
   const workspace = useWorkspace()
+  const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedMerchant, setSelectedMerchant] = useState<string>('')
   const [renameTo, setRenameTo] = useState('')
@@ -20,7 +22,7 @@ export function MerchantsPage() {
       string,
       { amount: number; count: number; firstSeen: string; lastSeen: string; rawAliases: Set<string> }
     >()
-    workspace.transactions.forEach((tx) => {
+    scopedTransactions.forEach((tx) => {
       const entry = map.get(tx.merchantFinal) ?? {
         amount: 0,
         count: 0,
@@ -38,7 +40,7 @@ export function MerchantsPage() {
     return [...map.entries()]
       .map(([merchant, value]) => ({ merchant, ...value }))
       .sort((a, b) => b.amount - a.amount)
-  }, [workspace.transactions])
+  }, [scopedTransactions])
 
   const selectedMerchantFromQuery = searchParams.get('merchant')
   const selectedMerchantResolved = useMemo(() => {
@@ -69,7 +71,7 @@ export function MerchantsPage() {
               <button
                 key={merchant.merchant}
                 className={`w-full rounded-md border p-2 text-left ${
-                  selectedMerchant === merchant.merchant
+                  selectedMerchantResolved === merchant.merchant
                     ? 'border-slate-900 bg-slate-100'
                     : 'border-slate-200 hover:bg-slate-50'
                 }`}

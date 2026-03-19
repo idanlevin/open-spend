@@ -5,25 +5,27 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
+import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 import { amountToCurrency } from '@/lib/utils'
 
 export function ReviewPage() {
   const workspace = useWorkspace()
+  const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
   const uncategorized = useMemo(
     () =>
-      workspace.transactions
+      scopedTransactions
         .filter((tx) => tx.categoryFinalName === 'Uncategorized' && !tx.isPayment)
         .slice(0, 80),
-    [workspace.transactions],
+    [scopedTransactions],
   )
   const largeTransactions = useMemo(
     () =>
-      workspace.transactions
+      scopedTransactions
         .filter((tx) => tx.amount > 1000 && !tx.isExcludedFromAnalytics)
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 20),
-    [workspace.transactions],
+    [scopedTransactions],
   )
 
   return (

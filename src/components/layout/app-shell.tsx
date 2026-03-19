@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   BarChart3,
   ClipboardCheck,
@@ -14,6 +14,7 @@ import {
   Workflow,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { GlobalTimeRangeBar } from '@/components/layout/global-time-range'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: Home },
@@ -30,6 +31,9 @@ const navItems = [
 ]
 
 export function AppShell() {
+  const location = useLocation()
+  const showGlobalTimeRange = !location.pathname.startsWith('/settings')
+
   return (
     <div className="flex min-h-screen text-(--text-primary)">
       <aside className="w-64 border-r border-white/50 bg-white/60 p-4 backdrop-blur-md">
@@ -70,6 +74,7 @@ export function AppShell() {
         </nav>
       </aside>
       <main className="flex-1 overflow-x-hidden">
+        {showGlobalTimeRange ? <GlobalTimeRangeBar /> : null}
         <Outlet />
       </main>
     </div>
