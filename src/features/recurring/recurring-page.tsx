@@ -27,10 +27,7 @@ interface RecurringCandidateWithDecision extends RecurringCandidate {
 }
 
 const cadenceLabels: Record<RecurringCadence, string> = {
-  weekly: 'Weekly',
-  biweekly: 'Biweekly',
   monthly: 'Monthly',
-  quarterly: 'Quarterly',
   annual: 'Annual',
 }
 
@@ -69,6 +66,8 @@ export function RecurringPage() {
   const [minConfidence, setMinConfidence] = useState('0.55')
   const [selectedMerchant, setSelectedMerchant] = useState<string | null>(null)
   const [pendingMerchantDecision, setPendingMerchantDecision] = useState<string | null>(null)
+  const [pendingCategoryOverrideMerchant, setPendingCategoryOverrideMerchant] = useState<string | null>(null)
+  const [detailCategoryOverride, setDetailCategoryOverride] = useState('')
 
   const recurring = useMemo(() => recurringCandidates(scopedTransactions), [scopedTransactions])
   const categoryNameById = useMemo(
@@ -80,11 +79,11 @@ export function RecurringPage() {
       recurring.map((candidate) => ({
         ...candidate,
         category:
-          (workspace.recurringCategoryOverrides[decisionKey(candidate.merchant)]
-            ? categoryNameById.get(workspace.recurringCategoryOverrides[decisionKey(candidate.merchant)])
+          (workspace.recurringCategoryOverrides[decisionKey(candidate.merchantGroupKey)]
+            ? categoryNameById.get(workspace.recurringCategoryOverrides[decisionKey(candidate.merchantGroupKey)])
             : undefined) ?? candidate.category,
-        categoryOverrideId: workspace.recurringCategoryOverrides[decisionKey(candidate.merchant)] ?? null,
-        decision: workspace.recurringDecisions[decisionKey(candidate.merchant)]?.decision ?? null,
+        categoryOverrideId: workspace.recurringCategoryOverrides[decisionKey(candidate.merchantGroupKey)] ?? null,
+        decision: workspace.recurringDecisions[decisionKey(candidate.merchantGroupKey)]?.decision ?? null,
       })),
     [categoryNameById, recurring, workspace.recurringCategoryOverrides, workspace.recurringDecisions],
   )
@@ -158,7 +157,7 @@ export function RecurringPage() {
   }, [filteredRecurring, monthlyScope])
   const selectedCandidate = useMemo(() => {
     if (selectedMerchant) {
-      return filteredRecurring.find((row) => row.merchant === selectedMerchant) ?? null
+      return filteredRecurring.find((row) => row.merchantGroupKey === selectedMerchant) ?? null
     }
     return filteredRecurring[0] ?? null
   }, [filteredRecurring, selectedMerchant])
@@ -175,15 +174,28 @@ export function RecurringPage() {
       setSelectedMerchant(null)
       return
     }
-    setSelectedMerchant(selectedCandidate.merchant)
+    setSelectedMerchant(selectedCandidate.merchantGroupKey)
   }, [selectedCandidate])
 
-  const applyDecision = async (merchant: string, decision: RecurringDecision | null) => {
-    setPendingMerchantDecision(merchant)
+  useEffect(() => {
+    setDetailCategoryOverride(selectedCandidate?.categoryOverrideId ?? '')
+  }, [selectedCandidate?.categoryOverrideId, selectedCandidate?.merchant])
+
+  const applyDecision = async (merchantGroupKey: string, decision: RecurringDecision | null) => {
+    setPendingMerchantDecision(merchantGroupKey)
     try {
-      await workspace.updateRecurringDecision(merchant, decision)
+      await workspace.updateRecurringDecision(merchantGroupKey, decision)
     } finally {
       setPendingMerchantDecision(null)
+    }
+  }
+
+  const applyCategoryOverride = async (merchantGroupKey: string, categoryId: string | null) => {
+    setPendingCategoryOverrideMerchant(merchantGroupKey)
+    try {
+      await workspace.updateRecurringCategoryOverride(merchantGroupKey, categoryId)
+    } finally {
+      setPendingCategoryOverrideMerchant(null)
     }
   }
 
@@ -270,7 +282,7 @@ export function RecurringPage() {
         id: 'actions',
         header: 'Actions',
         cell: ({ row }) => {
-          const loading = pendingMerchantDecision === row.original.merchant
+          const loading = pendingMerchantDecision === row.original.merchantGroupKey
           return (
             <div className="flex items-center gap-1">
               <Button
@@ -280,7 +292,7 @@ export function RecurringPage() {
                 onClick={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
-                  void applyDecision(row.original.merchant, 'confirmed')
+                  void applyDecision(row.original.merchantGroupKey, 'confirmed')
                 }}
               >
                 Confirm
@@ -292,7 +304,7 @@ export function RecurringPage() {
                 onClick={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
-                  void applyDecision(row.original.merchant, 'ignored')
+                  void applyDecision(row.original.merchantGroupKey, 'ignored')
                 }}
               >
                 Ignore
@@ -304,7 +316,7 @@ export function RecurringPage() {
                 onClick={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
-                  void applyDecision(row.original.merchant, null)
+                  void applyDecision(row.original.merchantGroupKey, null)
                 }}
               >
                 Clear
@@ -372,10 +384,7 @@ export function RecurringPage() {
             </Select>
             <Select value={cadenceFilter} onChange={(event) => setCadenceFilter(event.target.value as 'all' | RecurringCadence)}>
               <option value="all">All cadences</option>
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Biweekly</option>
               <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
               <option value="annual">Annual</option>
             </Select>
             <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | RecurringStatus)}>
@@ -423,10 +432,10 @@ export function RecurringPage() {
                 tableId="recurring-candidates"
                 data={filteredRecurring}
                 columns={recurringColumns}
-                getRowId={(row) => row.merchant}
+                getRowId={(row) => row.merchantGroupKey}
                 defaultSorting={[{ id: 'monthlyEquivalent', desc: true }]}
-                onRowClick={(row) => setSelectedMerchant(row.merchant)}
-                isRowActive={(row) => row.merchant === selectedCandidate?.merchant}
+                onRowClick={(row) => setSelectedMerchant(row.merchantGroupKey)}
+                isRowActive={(row) => row.merchantGroupKey === selectedCandidate?.merchantGroupKey}
                 activeRowClassName="bg-sky-50/80"
                 emptyMessage="No recurring charge patterns were detected for these filters."
               />
@@ -485,16 +494,63 @@ export function RecurringPage() {
                   )}
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Category override</p>
+                  <CardDescription className="mt-1 text-xs">
+                    Override how this merchant is categorized on the Recurring page.
+                  </CardDescription>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Select
+                      className="min-w-[220px]"
+                      value={detailCategoryOverride}
+                      onChange={(event) => setDetailCategoryOverride(event.target.value)}
+                    >
+                      <option value="">Auto-detect from recurring transactions</option>
+                      {workspace.categories.map((category) => (
+                        <option key={category.categoryId} value={category.categoryId}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </Select>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={
+                        pendingCategoryOverrideMerchant === selectedCandidate.merchantGroupKey ||
+                        detailCategoryOverride === (selectedCandidate.categoryOverrideId ?? '')
+                      }
+                      onClick={() =>
+                        void applyCategoryOverride(
+                          selectedCandidate.merchantGroupKey,
+                          detailCategoryOverride || null,
+                        )
+                      }
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={
+                        pendingCategoryOverrideMerchant === selectedCandidate.merchantGroupKey ||
+                        !selectedCandidate.categoryOverrideId
+                      }
+                      onClick={() => void applyCategoryOverride(selectedCandidate.merchantGroupKey, null)}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
                   <p className="text-xs text-slate-500">Actions</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       variant="secondary"
                       disabled={
-                        pendingMerchantDecision === selectedCandidate.merchant ||
+                        pendingMerchantDecision === selectedCandidate.merchantGroupKey ||
                         selectedCandidate.decision === 'confirmed'
                       }
-                      onClick={() => void applyDecision(selectedCandidate.merchant, 'confirmed')}
+                      onClick={() => void applyDecision(selectedCandidate.merchantGroupKey, 'confirmed')}
                     >
                       Confirm
                     </Button>
@@ -502,10 +558,10 @@ export function RecurringPage() {
                       size="sm"
                       variant="ghost"
                       disabled={
-                        pendingMerchantDecision === selectedCandidate.merchant ||
+                        pendingMerchantDecision === selectedCandidate.merchantGroupKey ||
                         selectedCandidate.decision === 'ignored'
                       }
-                      onClick={() => void applyDecision(selectedCandidate.merchant, 'ignored')}
+                      onClick={() => void applyDecision(selectedCandidate.merchantGroupKey, 'ignored')}
                     >
                       Ignore
                     </Button>
@@ -513,10 +569,10 @@ export function RecurringPage() {
                       size="sm"
                       variant="ghost"
                       disabled={
-                        pendingMerchantDecision === selectedCandidate.merchant ||
+                        pendingMerchantDecision === selectedCandidate.merchantGroupKey ||
                         selectedCandidate.decision == null
                       }
-                      onClick={() => void applyDecision(selectedCandidate.merchant, null)}
+                      onClick={() => void applyDecision(selectedCandidate.merchantGroupKey, null)}
                     >
                       Clear
                     </Button>
@@ -557,13 +613,33 @@ export function RecurringPage() {
           <CardDescription>
             Normalized to monthly spend across recurring items in scope.
           </CardDescription>
+          {categoryFilter !== 'all' ? (
+            <div className="mt-2">
+              <Button size="sm" variant="ghost" onClick={() => setCategoryFilter('all')}>
+                Clear category filter ({categoryFilter})
+              </Button>
+            </div>
+          ) : null}
           <div className="mt-3 space-y-2 text-sm">
             {summary.topCategories.length > 0 ? (
               summary.topCategories.map((category) => (
-                <div key={category.category} className="flex items-center justify-between rounded-md bg-slate-50 p-2">
+                <button
+                  key={category.category}
+                  type="button"
+                  className={`flex w-full items-center justify-between rounded-md p-2 text-left transition ${
+                    categoryFilter === category.category
+                      ? 'bg-violet-100/80 text-violet-900'
+                      : 'bg-slate-50 hover:bg-violet-50'
+                  }`}
+                  onClick={() =>
+                    setCategoryFilter((current) =>
+                      current === category.category ? 'all' : category.category,
+                    )
+                  }
+                >
                   <span>{category.category}</span>
                   <span className="font-medium">{amountToCurrency(category.amount)}</span>
-                </div>
+                </button>
               ))
             ) : (
               <CardDescription>No recurring category spend in the current filters.</CardDescription>

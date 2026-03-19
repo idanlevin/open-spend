@@ -7,6 +7,8 @@ describe('normalization', () => {
   it('normalizes merchant naming variants', () => {
     expect(normalizeMerchantName('AMAZON MARKETPLACE NA')).toBe('Amazon')
     expect(normalizeMerchantName('uber trip help.uber.com')).toBe('Uber')
+    expect(normalizeMerchantName('GOOGLE *GSUITE_HIEVECC@GOOGLE.COM CA')).toBe('Google Workspace')
+    expect(normalizeMerchantName('Google Workspace_hicc Google Com')).toBe('Google Workspace')
   })
 
   it('produces stable transaction identity and category', async () => {
