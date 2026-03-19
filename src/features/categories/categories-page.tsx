@@ -6,32 +6,34 @@ import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 import { amountToCurrency } from '@/lib/utils'
 
 export function CategoriesPage() {
   const workspace = useWorkspace()
+  const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
   const [editing, setEditing] = useState<Record<string, string>>({})
   const [rawCategory, setRawCategory] = useState('')
   const [targetCategory, setTargetCategory] = useState('')
 
   const usageByCategory = useMemo(() => {
     const map = new Map<string, { count: number; spend: number }>()
-    workspace.transactions.forEach((tx) => {
+    scopedTransactions.forEach((tx) => {
       const entry = map.get(tx.categoryFinalId) ?? { count: 0, spend: 0 }
       entry.count += 1
       entry.spend += tx.amount
       map.set(tx.categoryFinalId, entry)
     })
     return map
-  }, [workspace.transactions])
+  }, [scopedTransactions])
 
   const rawCategories = useMemo(
     () =>
-      [...new Set(workspace.transactions.map((tx) => tx.amexCategoryRaw))]
+      [...new Set(scopedTransactions.map((tx) => tx.amexCategoryRaw))]
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b)),
-    [workspace.transactions],
+    [scopedTransactions],
   )
 
   return (

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { TransactionsPage } from '@/features/transactions/transactions-page'
+import { useTimeRangeStore } from '@/stores/time-range-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useViewStore } from '@/stores/view-store'
 
@@ -15,6 +16,7 @@ describe('ui flows', () => {
     )
 
   beforeEach(() => {
+    useTimeRangeStore.getState().reset()
     useViewStore.setState({
       filters: {
         query: '',
@@ -126,7 +128,7 @@ describe('ui flows', () => {
     expect(screen.getByText('STARBUCKS 001')).toBeInTheDocument()
 
     const user = userEvent.setup()
-    await user.type(screen.getByPlaceholderText('Search merchant, note, reference...'), 'nonexistent')
+    await user.type(screen.getByPlaceholderText('Search all columns...'), 'nonexistent')
 
     expect(screen.queryByText('STARBUCKS 001')).not.toBeInTheDocument()
   })
@@ -140,13 +142,11 @@ describe('ui flows', () => {
     expect(screen.getByText('Save overrides')).toBeInTheDocument()
   })
 
-  it('resets filters from toolbar control', async () => {
+  it('shows bulk actions only after selecting rows', async () => {
     const user = userEvent.setup()
     renderTransactionsPage()
-    const search = screen.getByPlaceholderText('Search merchant, note, reference...')
-    await user.type(search, 'abc')
-    expect((search as HTMLInputElement).value).toBe('abc')
-    await user.click(screen.getByText('Reset filters'))
-    expect((search as HTMLInputElement).value).toBe('')
+    expect(screen.queryByText('Bulk actions (1)')).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Select row'))
+    expect(screen.getByText('Bulk actions (1)')).toBeInTheDocument()
   })
 })

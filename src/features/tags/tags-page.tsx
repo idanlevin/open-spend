@@ -5,22 +5,24 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 
 export function TagsPage() {
   const workspace = useWorkspace()
+  const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
   const [name, setName] = useState('')
   const [color, setColor] = useState('#2563eb')
 
   const usage = useMemo(() => {
     const map = new Map<string, number>()
-    workspace.transactions.forEach((tx) => {
+    scopedTransactions.forEach((tx) => {
       tx.tags.forEach((tag) => {
         map.set(tag.tagId, (map.get(tag.tagId) ?? 0) + 1)
       })
     })
     return map
-  }, [workspace.transactions])
+  }, [scopedTransactions])
 
   return (
     <div>

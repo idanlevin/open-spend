@@ -3,14 +3,17 @@ import { format, parseISO } from 'date-fns'
 import { Files } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { useScopedStatements, useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 import { amountToCurrency } from '@/lib/utils'
 
 export function StatementsPage() {
   const workspace = useWorkspace()
+  const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
+  const scopedStatements = useScopedStatements(workspace.statements)
   const byStatement = useMemo(() => {
-    return workspace.statements.map((statement) => {
-      const scoped = workspace.transactions.filter((tx) => tx.statementId === statement.statementId)
+    return scopedStatements.map((statement) => {
+      const scoped = scopedTransactions.filter((tx) => tx.statementId === statement.statementId)
       const totalDebits = scoped.filter((tx) => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0)
       const totalRefunds = scoped.filter((tx) => tx.isRefund).reduce((sum, tx) => sum + tx.amount, 0)
       const totalPayments = scoped.filter((tx) => tx.isPayment).reduce((sum, tx) => sum + tx.amount, 0)
@@ -22,7 +25,7 @@ export function StatementsPage() {
         totalPayments,
       }
     })
-  }, [workspace.statements, workspace.transactions])
+  }, [scopedStatements, scopedTransactions])
 
   return (
     <div>

@@ -15,6 +15,7 @@ import { LineChart } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { AdvancedDataTable } from '@/components/ui/advanced-data-table'
+import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 import { amountToCurrency } from '@/lib/utils'
 import { recurringCandidates, spendOverTime, topByDimension } from '@/lib/analytics/metrics'
@@ -23,20 +24,21 @@ type RecurringCandidate = ReturnType<typeof recurringCandidates>[number]
 
 export function InsightsPage() {
   const workspace = useWorkspace()
-  const trend = useMemo(() => spendOverTime(workspace.transactions), [workspace.transactions])
+  const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
+  const trend = useMemo(() => spendOverTime(scopedTransactions), [scopedTransactions])
   const categories = useMemo(
-    () => topByDimension(workspace.transactions, 'categoryFinalName', 10),
-    [workspace.transactions],
+    () => topByDimension(scopedTransactions, 'categoryFinalName', 10),
+    [scopedTransactions],
   )
   const merchants = useMemo(
-    () => topByDimension(workspace.transactions, 'merchantFinal', 10),
-    [workspace.transactions],
+    () => topByDimension(scopedTransactions, 'merchantFinal', 10),
+    [scopedTransactions],
   )
   const cardholders = useMemo(
-    () => topByDimension(workspace.transactions, 'cardMember', 10),
-    [workspace.transactions],
+    () => topByDimension(scopedTransactions, 'cardMember', 10),
+    [scopedTransactions],
   )
-  const recurring = useMemo(() => recurringCandidates(workspace.transactions), [workspace.transactions])
+  const recurring = useMemo(() => recurringCandidates(scopedTransactions), [scopedTransactions])
   const recurringColumns = useMemo<ColumnDef<RecurringCandidate, unknown>[]>(
     () => [
       {

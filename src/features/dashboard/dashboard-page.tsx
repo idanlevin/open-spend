@@ -31,6 +31,7 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { amountToCurrency } from '@/lib/utils'
 import { useWorkspace } from '@/hooks/use-workspace'
+import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { buildDashboardMetrics, spendOverTime, topByDimension } from '@/lib/analytics/metrics'
 import { FolderImporter } from '@/features/import/folder-importer'
 
@@ -40,25 +41,26 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const [includeRefundsInTrend, setIncludeRefundsInTrend] = useState(false)
   const workspace = useWorkspace()
+  const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
   const metrics = useMemo(
-    () => buildDashboardMetrics(workspace.transactions),
-    [workspace.transactions],
+    () => buildDashboardMetrics(scopedTransactions),
+    [scopedTransactions],
   )
   const trend = useMemo(
-    () => spendOverTime(workspace.transactions, { includeRefunds: includeRefundsInTrend }),
-    [includeRefundsInTrend, workspace.transactions],
+    () => spendOverTime(scopedTransactions, { includeRefunds: includeRefundsInTrend }),
+    [includeRefundsInTrend, scopedTransactions],
   )
   const byCategory = useMemo(
-    () => topByDimension(workspace.transactions, 'categoryFinalName', 6),
-    [workspace.transactions],
+    () => topByDimension(scopedTransactions, 'categoryFinalName', 6),
+    [scopedTransactions],
   )
   const byMerchant = useMemo(
-    () => topByDimension(workspace.transactions, 'merchantFinal', 8),
-    [workspace.transactions],
+    () => topByDimension(scopedTransactions, 'merchantFinal', 8),
+    [scopedTransactions],
   )
 
   const needsReview = {
-    uncategorized: workspace.transactions.filter(
+    uncategorized: scopedTransactions.filter(
       (tx) => tx.categoryFinalName === 'Uncategorized' && !tx.isPayment,
     ).length,
     newMerchants: workspace.latestImport?.newMerchants.length ?? 0,

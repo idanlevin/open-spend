@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { AdvancedDataTable } from '@/components/ui/advanced-data-table'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { useScopedTransactions } from '@/hooks/use-time-scope'
 import { useWorkspace } from '@/hooks/use-workspace'
 import type { EnrichedTransaction } from '@/types/domain'
 import { amountToCurrency } from '@/lib/utils'
@@ -13,13 +14,14 @@ import { amountToCurrency } from '@/lib/utils'
 export function PaymentsPage() {
   const navigate = useNavigate()
   const workspace = useWorkspace()
+  const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
 
   const payments = useMemo(
     () =>
-      [...workspace.transactions]
+      [...scopedTransactions]
         .filter((tx) => tx.isPayment)
         .sort((a, b) => b.transactionDate.localeCompare(a.transactionDate)),
-    [workspace.transactions],
+    [scopedTransactions],
   )
 
   const totalPayments = useMemo(
