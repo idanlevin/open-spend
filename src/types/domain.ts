@@ -236,4 +236,5 @@ export interface EnrichedTransaction extends TransactionNormalized {
   isReimbursable: boolean
   isBusiness: boolean
   splitDefinition?: SplitDefinition
+  manualOverride?: TransactionOverride
 }

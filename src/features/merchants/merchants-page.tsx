@@ -220,10 +220,11 @@ export function MerchantsPage() {
     }
   }, [filteredRows])
 
-  const selectedMerchantFromQuery = searchParams.get('merchant')
+  const selectedMerchantFromQuery = searchParams.get('merchant')?.trim() ?? ''
+
   const selectedMerchantResolved = useMemo(() => {
     const matchedFromQuery = selectedMerchantFromQuery
-      ? filteredRows.find((row) => row.merchant.toLowerCase() === selectedMerchantFromQuery.toLowerCase())?.merchant
+      ? filteredRows.find((row) => merchantKey(row.merchant) === merchantKey(selectedMerchantFromQuery))?.merchant
       : undefined
     if (matchedFromQuery) return matchedFromQuery
     const matchedFromState = selectedMerchant
@@ -441,6 +442,7 @@ export function MerchantsPage() {
                 }}
                 isRowActive={(row) => row.merchant === active?.merchant}
                 activeRowClassName="bg-sky-50/80"
+                scrollActiveRowIntoView
                 emptyMessage="No merchants match these filters."
               />
             </div>

@@ -5,7 +5,9 @@ import { db } from '@/lib/storage/db'
 import {
   initializeWorkspace,
   loadWorkspaceSnapshot,
+  rerunRulesOnExistingTransactions,
   setTransactionTags,
+  upsertRule,
   upsertTransactionOverride,
 } from '@/lib/storage/workspace-service'
 
@@ -79,5 +81,74 @@ describe('local persistence', () => {
 
     expect(payment?.categoryFinalId).toBe('cat_transfers_credits')
     expect(payment?.categoryFinalName).toBe('Transfers/Credits')
+  })
+
+  it('re-runs rules over existing transactions', async () => {
+    const file = new File([createSampleAmexWorkbookBuffer()], 'statement.xlsx')
+    await importStatementFiles([file], 'folder')
+    await upsertRule({
+      ruleId: 'rule_mark_business_all',
+      name: 'Mark all imported rows business',
+      enabled: true,
+      priority: 1,
+      applyMode: 'new-only',
+      conditions: [
+        {
+          field: 'amount',
+          operator: 'gt',
+          value: -999999,
+        },
+      ],
+      actions: [
+        {
+          type: 'markBusiness',
+          value: true,
+        },
+      ],
+    })
+
+    const summary = await rerunRulesOnExistingTransactions()
+    const snapshot = await loadWorkspaceSnapshot()
+
+    expect(summary.processed).toBeGreaterThan(0)
+    expect(summary.matched).toBe(summary.processed)
+    expect(snapshot.transactions.every((tx) => tx.isBusiness)).toBe(true)
+    expect(
+      snapshot.transactions.every((tx) => (tx.appliedRuleIds ?? []).includes('rule_mark_business_all')),
+    ).toBe(true)
+  })
+
+  it('maps setCategory action values from category name to category id', async () => {
+    const file = new File([createSampleAmexWorkbookBuffer()], 'statement.xlsx')
+    await importStatementFiles([file], 'folder')
+    await upsertRule({
+      ruleId: 'rule_set_category_name',
+      name: 'Set by category name',
+      enabled: true,
+      priority: 1,
+      applyMode: 'new-only',
+      conditions: [
+        {
+          field: 'amount',
+          operator: 'gt',
+          value: -999999,
+        },
+      ],
+      actions: [
+        {
+          type: 'setCategory',
+          value: 'Entertainment',
+        },
+      ],
+    })
+    const savedRule = await db.rules.get('rule_set_category_name')
+
+    await rerunRulesOnExistingTransactions()
+    const snapshot = await loadWorkspaceSnapshot()
+
+    expect(savedRule?.actions[0]?.value).toBe('cat_entertainment')
+    expect(snapshot.transactions.length).toBeGreaterThan(0)
+    expect(snapshot.transactions.every((tx) => tx.categoryFinalId === 'cat_entertainment')).toBe(true)
+    expect(snapshot.transactions.every((tx) => tx.categoryFinalName === 'Entertainment')).toBe(true)
   })
 })

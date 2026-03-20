@@ -5,6 +5,9 @@ import {
   createTag,
   initializeWorkspace,
   loadWorkspaceSnapshot,
+  revertTransactionEdits,
+  type RevertableTransactionEditField,
+  rerunRulesOnExistingTransactions,
   setRecurringMerchantCategoryOverride,
   setRecurringMerchantDecision,
   renameMerchantEverywhere,
@@ -52,11 +55,16 @@ interface WorkspaceState {
     },
   ) => Promise<void>
   updateTags: (transactionId: string, tagIds: string[]) => Promise<void>
+  revertTransactionEdits: (
+    transactionId: string,
+    fields?: RevertableTransactionEditField[],
+  ) => Promise<void>
   createTag: (name: string, colorToken: string) => Promise<void>
   remapRawCategory: (rawCategory: string, categoryId: string) => Promise<void>
   renameCategory: (categoryId: string, name: string) => Promise<void>
   renameMerchant: (merchantRaw: string, merchantNormalized: string) => Promise<void>
   saveRule: (rule: Rule) => Promise<void>
+  rerunRules: () => Promise<{ processed: number; matched: number }>
   updateRecurringDecision: (merchant: string, decision: RecurringDecision | null) => Promise<void>
   updateRecurringCategoryOverride: (merchant: string, categoryId: string | null) => Promise<void>
   clearWorkspace: () => Promise<void>
@@ -126,6 +134,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     await setTransactionTags(transactionId, tagIds)
     await reloadData(set)
   },
+  revertTransactionEdits: async (transactionId, fields) => {
+    await revertTransactionEdits(transactionId, fields)
+    await reloadData(set)
+  },
   createTag: async (name, colorToken) => {
     await createTag(name, colorToken)
     await reloadData(set)
@@ -145,6 +157,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   saveRule: async (rule) => {
     await upsertRule(rule)
     await reloadData(set)
+  },
+  rerunRules: async () => {
+    set({ loading: true, error: undefined })
+    try {
+      const summary = await rerunRulesOnExistingTransactions()
+      await reloadData(set)
+      set({ loading: false })
+      return summary
+    } catch (error) {
+      set({ loading: false, error: error instanceof Error ? error.message : 'Rule rerun failed' })
+      throw error
+    }
   },
   updateRecurringDecision: async (merchant, decision) => {
     await setRecurringMerchantDecision(merchant, decision)
