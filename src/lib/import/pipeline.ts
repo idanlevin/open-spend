@@ -1,7 +1,7 @@
 import { db } from '@/lib/storage/db'
 import { parseAmexWorkbook } from '@/lib/parsing/amex-parser'
 import { normalizeTransaction } from '@/lib/normalization/transaction'
-import { applyRuleActions, transactionMatchesRule } from '@/lib/rules/engine'
+import { applyRuleActions, resolveRuleActions, transactionMatchesRule } from '@/lib/rules/engine'
 import { PARSE_VERSION, nowIso, randomId, sha256Hex } from '@/lib/utils'
 import type {
   ImportBatch,
@@ -45,8 +45,13 @@ export async function importStatementFiles(
 
   const aliases = await db.categoryAliases.toArray()
   const rules = (await db.rules.toArray()).filter((rule) => rule.enabled).sort((a, b) => a.priority - b.priority)
+  const categories = await db.categories.toArray()
   const merchantMappings = await db.merchantMappings.toArray()
   const allTags = await db.tags.toArray()
+  const categoryIds = new Set(categories.map((category) => category.categoryId))
+  const categoryIdByName = new Map(
+    categories.map((category) => [category.name.trim().toLowerCase(), category.categoryId]),
+  )
   const merchantMap = new Map<string, string>()
   merchantMappings.forEach((mapping) => {
     merchantMap.set(mapping.merchantRaw.toLowerCase(), mapping.merchantNormalized)
@@ -177,7 +182,8 @@ export async function importStatementFiles(
           for (const rule of rules) {
             if (!transactionMatchesRule(ruled, rule)) continue
             appliedRuleIds.push(rule.ruleId)
-            const result = applyRuleActions(ruled, rule.actions)
+            const resolvedActions = resolveRuleActions(rule.actions, categoryIds, categoryIdByName)
+            const result = applyRuleActions(ruled, resolvedActions)
             ruled = result.transaction
             if (result.isBusiness !== undefined) overridesFromRules.isBusiness = result.isBusiness
             if (result.isReimbursable !== undefined) {

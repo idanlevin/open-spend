@@ -66,6 +66,25 @@ export function transactionMatchesRule(tx: TransactionNormalized, rule: Rule): b
   return rule.conditions.every((condition) => conditionMatches(tx, condition))
 }
 
+export function resolveRuleActions(
+  actions: RuleAction[],
+  categoryIds: Set<string>,
+  categoryIdByName: Map<string, string>,
+): RuleAction[] {
+  return actions.map((action) => {
+    if (action.type !== 'setCategory') return action
+    const rawValue = String(action.value).trim()
+    if (!rawValue) return action
+    if (categoryIds.has(rawValue)) return action
+    const resolvedCategoryId = categoryIdByName.get(rawValue.toLowerCase())
+    if (!resolvedCategoryId) return action
+    return {
+      ...action,
+      value: resolvedCategoryId,
+    }
+  })
+}
+
 export function applyRuleActions(
   tx: TransactionNormalized,
   actions: RuleAction[],

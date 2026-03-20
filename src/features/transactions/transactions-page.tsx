@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { parse } from 'date-fns'
 import { type ColumnDef, type GroupingState } from '@tanstack/react-table'
 import { Download, TableProperties } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { AdvancedDataTable } from '@/components/ui/advanced-data-table'
@@ -17,12 +17,13 @@ import { useWorkspace } from '@/hooks/use-workspace'
 import { useViewStore, type GroupByOption } from '@/stores/view-store'
 import { useTimeRangeStore } from '@/stores/time-range-store'
 import type { EnrichedTransaction } from '@/types/domain'
-import { amountToCurrency } from '@/lib/utils'
+import { amountToCurrency, normalizeText } from '@/lib/utils'
 import { applyTransactionFilters } from '@/lib/analytics/filtering'
 import { exportTransactionsCsv, exportTransactionsXlsx } from '@/lib/export/exporters'
 
 export function TransactionsPage() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const workspace = useWorkspace()
   const { filters, setFilters, resetFilters } = useViewStore()
   const setGlobalTimeMode = useTimeRangeStore((state) => state.setMode)
@@ -118,6 +119,19 @@ export function TransactionsPage() {
   )
 
   const selectedCount = selectedRows.length
+  const selectedRowsWithRevertableEdits = useMemo(
+    () =>
+      selectedRows.filter((row) => {
+        const override = row.manualOverride
+        if (!override) return false
+        return (
+          typeof override.merchantOverride === 'string' ||
+          typeof override.categoryOverrideId === 'string' ||
+          (typeof override.notes === 'string' && override.notes.trim().length > 0)
+        )
+      }),
+    [selectedRows],
+  )
 
   const applyBulkCategory = async () => {
     if (!bulkCategory || selectedRows.length === 0) return
@@ -140,6 +154,18 @@ export function TransactionsPage() {
     setBulkTagId('')
     setSelectedRows([])
     setSelectionResetToken((value) => value + 1)
+  }
+
+  const applyBulkRevertManualEdits = async () => {
+    if (selectedRowsWithRevertableEdits.length === 0) return
+    const message = `Revert manual merchant/category/notes edits for ${selectedRowsWithRevertableEdits.length} selected transaction${selectedRowsWithRevertableEdits.length === 1 ? '' : 's'}?`
+    if (!window.confirm(message)) return
+    await Promise.all(
+      selectedRowsWithRevertableEdits.map((row) => workspace.revertTransactionEdits(row.transactionId)),
+    )
+    setSelectedRows([])
+    setSelectionResetToken((value) => value + 1)
+    setShowBulkActions(false)
   }
 
   const exportRows = selectedCount > 0 ? selectedRows : filteredRows
@@ -316,6 +342,14 @@ export function TransactionsPage() {
                             <Button className="w-full" onClick={applyBulkTag} disabled={!bulkTagId || selectedCount === 0}>
                               Add tag to selected
                             </Button>
+                            <Button
+                              className="w-full"
+                              variant="ghost"
+                              onClick={applyBulkRevertManualEdits}
+                              disabled={selectedRowsWithRevertableEdits.length === 0}
+                            >
+                              Revert manual edits on selected
+                            </Button>
                           </div>
                         </div>
                       ) : null}
@@ -363,7 +397,19 @@ export function TransactionsPage() {
         <Card className="w-[320px] shrink-0">
           <CardTitle>Details</CardTitle>
           <CardDescription>
-            {selectedTransaction ? selectedTransaction.merchantFinal : 'Select a transaction'}
+            {selectedTransaction ? (
+              <button
+                type="button"
+                className="cursor-pointer text-left text-violet-700 underline decoration-violet-300 underline-offset-2 hover:text-violet-900"
+                onClick={() =>
+                  navigate(`/merchants?merchant=${encodeURIComponent(selectedTransaction.merchantFinal)}`)
+                }
+              >
+                {selectedTransaction.merchantFinal}
+              </button>
+            ) : (
+              'Select a transaction'
+            )}
           </CardDescription>
           {selectedTransaction ? (
             <TransactionDetails transaction={selectedTransaction} />
@@ -382,14 +428,94 @@ function TransactionDetails({ transaction }: { transaction: EnrichedTransaction 
   const [merchantOverride, setMerchantOverride] = useState(transaction.merchantFinal)
   const [categoryId, setCategoryId] = useState(transaction.categoryFinalId)
   const [tagIds, setTagIds] = useState(transaction.tags.map((tag) => tag.tagId))
+  const [revertingField, setRevertingField] = useState<string | null>(null)
+
+  useEffect(() => {
+    setNotes(transaction.notes)
+    setMerchantOverride(transaction.merchantFinal)
+    setCategoryId(transaction.categoryFinalId)
+    setTagIds(transaction.tags.map((tag) => tag.tagId))
+  }, [transaction])
+
+  const categoryNameById = useMemo(
+    () => new Map(workspace.categories.map((category) => [category.categoryId, category.name])),
+    [workspace.categories],
+  )
+
+  const manualChanges = useMemo<
+    Array<{ field: 'merchantOverride' | 'categoryOverrideId' | 'notes'; label: string; from: string; to: string }>
+  >(() => {
+    const changes: Array<{
+      field: 'merchantOverride' | 'categoryOverrideId' | 'notes'
+      label: string
+      from: string
+      to: string
+    }> = []
+    const override = transaction.manualOverride
+    if (!transaction.hasManualOverride || !override) return changes
+
+    if (
+      typeof override.merchantOverride === 'string' &&
+      normalizeText(override.merchantOverride) !== normalizeText(transaction.merchantNormalized)
+    ) {
+      changes.push({
+        field: 'merchantOverride',
+        label: 'Merchant',
+        from: transaction.merchantNormalized,
+        to: override.merchantOverride,
+      })
+    }
+
+    if (
+      typeof override.categoryOverrideId === 'string' &&
+      override.categoryOverrideId !== transaction.categoryIdResolved
+    ) {
+      changes.push({
+        field: 'categoryOverrideId',
+        label: 'Category',
+        from: categoryNameById.get(transaction.categoryIdResolved) ?? transaction.categoryIdResolved,
+        to: categoryNameById.get(override.categoryOverrideId) ?? override.categoryOverrideId,
+      })
+    }
+
+    if (typeof override.notes === 'string' && override.notes.trim().length > 0) {
+      changes.push({
+        field: 'notes',
+        label: 'Notes',
+        from: 'None',
+        to: override.notes,
+      })
+    }
+
+    return changes
+  }, [categoryNameById, transaction])
 
   const save = async () => {
-    await workspace.updateTransactionFlags(transaction.transactionId, {
-      notes,
-      merchantOverride,
-    })
-    await workspace.updateCategoryOverride(transaction.transactionId, categoryId)
-    await workspace.updateTags(transaction.transactionId, tagIds)
+    const nextMerchant = merchantOverride.trim()
+    const nextNotes = notes
+    const currentTagIds = transaction.tags.map((tag) => tag.tagId)
+    const hasTagChanges =
+      currentTagIds.length !== tagIds.length ||
+      currentTagIds.some((tagId) => !tagIds.includes(tagId)) ||
+      tagIds.some((tagId) => !currentTagIds.includes(tagId))
+    const shouldRenameMerchant =
+      nextMerchant.length > 0 &&
+      normalizeText(nextMerchant) !== normalizeText(transaction.merchantFinal)
+    const shouldUpdateNotes = nextNotes !== transaction.notes
+    const shouldUpdateCategory = categoryId !== transaction.categoryFinalId
+
+    if (shouldUpdateNotes) {
+      await workspace.updateTransactionFlags(transaction.transactionId, { notes: nextNotes })
+    }
+    if (shouldRenameMerchant) {
+      await workspace.renameMerchant(transaction.merchantFinal, nextMerchant)
+    }
+    if (shouldUpdateCategory) {
+      await workspace.updateCategoryOverride(transaction.transactionId, categoryId)
+    }
+    if (hasTagChanges) {
+      await workspace.updateTags(transaction.transactionId, tagIds)
+    }
   }
 
   return (
@@ -399,7 +525,7 @@ function TransactionDetails({ transaction }: { transaction: EnrichedTransaction 
         <p className="text-base font-semibold">{amountToCurrency(transaction.amount)}</p>
       </div>
       <div>
-        <p className="text-xs text-slate-500">Merchant</p>
+        <p className="text-xs text-slate-500">Merchant (renames all matching transactions)</p>
         <Input value={merchantOverride} onChange={(event) => setMerchantOverride(event.target.value)} />
       </div>
       <div>
@@ -440,6 +566,53 @@ function TransactionDetails({ transaction }: { transaction: EnrichedTransaction 
         <p className="text-xs text-slate-500">Notes</p>
         <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
       </div>
+      {manualChanges.length > 0 ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50/60 p-2">
+          <p className="text-xs font-semibold text-amber-900">Manual edits</p>
+          <div className="mt-1 space-y-2">
+            {manualChanges.map((change) => (
+              <div key={change.field} className="rounded border border-amber-100 bg-white/70 p-2">
+                <p className="text-xs font-medium text-slate-700">{change.label}</p>
+                <p className="text-xs text-slate-600">
+                  {change.from} {'->'} {change.to}
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="mt-1 h-7 px-2 text-xs"
+                  disabled={revertingField !== null}
+                  onClick={async () => {
+                    setRevertingField(change.field)
+                    try {
+                      await workspace.revertTransactionEdits(transaction.transactionId, [change.field])
+                    } finally {
+                      setRevertingField(null)
+                    }
+                  }}
+                >
+                  Revert
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="mt-2 h-8 w-full"
+            disabled={revertingField !== null}
+            onClick={async () => {
+              setRevertingField('all')
+              try {
+                await workspace.revertTransactionEdits(transaction.transactionId, manualChanges.map((x) => x.field))
+              } finally {
+                setRevertingField(null)
+              }
+            }}
+          >
+            Revert all manual edits
+          </Button>
+        </div>
+      ) : null}
       <div className="grid grid-cols-2 gap-2">
         <label className="flex items-center gap-2 text-xs">
           <Checkbox

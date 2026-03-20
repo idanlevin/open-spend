@@ -86,6 +86,7 @@ interface AdvancedDataTableProps<TData extends object> {
   onGroupingChange?: OnChangeFn<GroupingState>
   enableGrouping?: boolean
   toolbarActions?: ReactNode
+  scrollActiveRowIntoView?: boolean
 }
 
 function getStorageKey(tableId: string): string {
@@ -472,6 +473,7 @@ export function AdvancedDataTable<TData extends object>({
   onGroupingChange,
   enableGrouping = false,
   toolbarActions,
+  scrollActiveRowIntoView = false,
 }: AdvancedDataTableProps<TData>) {
   const selectionColumn = useMemo<ColumnDef<TData, unknown>>(
     () => ({
@@ -685,10 +687,45 @@ export function AdvancedDataTable<TData extends object>({
   )
   const hasMoreRows = visibleRows.length < fullRowCount
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const lastAutoScrolledRowIdRef = useRef<string | null>(null)
+
+  const activeRowIndex = useMemo(() => {
+    if (!isRowActive || !useManualDataPipeline) return -1
+    return manuallyProcessedData.findIndex((row) => isRowActive(row))
+  }, [isRowActive, manuallyProcessedData, useManualDataPipeline])
+
+  const activeVisibleRowId = useMemo(() => {
+    if (!isRowActive) return null
+    const activeRow = visibleRows.find((row) => isRowActive(row.original))
+    return activeRow?.id ?? null
+  }, [isRowActive, visibleRows])
 
   useEffect(() => {
     setVisibleCount(pageSize)
   }, [columnOrder, columnVisibility, data.length, effectiveGrouping, excelFilters, pageSize, sorting, globalFilter])
+
+  useEffect(() => {
+    if (!scrollActiveRowIntoView || activeRowIndex < 0) return
+    if (activeRowIndex < visibleCount) return
+    setVisibleCount(Math.min(fullRowCount, activeRowIndex + pageSize))
+  }, [activeRowIndex, fullRowCount, pageSize, scrollActiveRowIntoView, visibleCount])
+
+  useEffect(() => {
+    if (!scrollActiveRowIntoView || !activeVisibleRowId) {
+      lastAutoScrolledRowIdRef.current = null
+      return
+    }
+    if (lastAutoScrolledRowIdRef.current === activeVisibleRowId) return
+    const container = scrollRef.current
+    if (!container) return
+    const rowElement = [...container.querySelectorAll<HTMLTableRowElement>('tr[data-row-id]')].find(
+      (row) => row.dataset.rowId === activeVisibleRowId,
+    )
+    if (!rowElement) return
+    if (typeof rowElement.scrollIntoView !== 'function') return
+    rowElement.scrollIntoView({ block: 'nearest' })
+    lastAutoScrolledRowIdRef.current = activeVisibleRowId
+  }, [activeVisibleRowId, scrollActiveRowIntoView, visibleRows.length])
 
   const handleTableScroll = (event: UIEvent<HTMLDivElement>) => {
     if (!hasMoreRows) return
@@ -1197,6 +1234,7 @@ export function AdvancedDataTable<TData extends object>({
               visibleRows.map((row) => (
                 <tr
                   key={row.id}
+                  data-row-id={row.id}
                   onClick={() => onRowClick?.(row.original)}
                   className={cn(
                     'border-b border-slate-100',

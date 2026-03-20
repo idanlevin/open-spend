@@ -2,7 +2,10 @@ import { db, deleteLegacyDatabases } from '@/lib/storage/db'
 import { STARTER_TAGS, SYSTEM_CATEGORIES } from '@/lib/storage/seeds'
 import { classifyTransactionKind } from '@/lib/normalization/transaction-kind'
 import { normalizeMerchantName } from '@/lib/normalization/merchant'
+import { normalizeTransaction } from '@/lib/normalization/transaction'
+import { applyRuleActions, resolveRuleActions, transactionMatchesRule } from '@/lib/rules/engine'
 import { randomId } from '@/lib/utils'
+import type { ParsedTransactionRow } from '@/lib/parsing/types'
 import type {
   Category,
   CategoryAlias,
@@ -30,6 +33,12 @@ export interface WorkspaceSnapshot {
 
 const RECURRING_DECISIONS_KEY = 'recurring.decisions.v1'
 const RECURRING_CATEGORY_OVERRIDES_KEY = 'recurring.category-overrides.v1'
+export const REVERTABLE_TRANSACTION_EDIT_FIELDS = [
+  'merchantOverride',
+  'categoryOverrideId',
+  'notes',
+] as const
+export type RevertableTransactionEditField = (typeof REVERTABLE_TRANSACTION_EDIT_FIELDS)[number]
 
 export function normalizeRecurringDecisionKey(merchant: string): string {
   return merchant.trim().toLowerCase()
@@ -189,6 +198,7 @@ function applyOverrides(
     isBusiness: override?.isBusiness ?? false,
     isReimbursable: override?.isReimbursable ?? false,
     splitDefinition: override?.splitDefinition,
+    manualOverride: override,
   }
 }
 
@@ -263,6 +273,47 @@ export async function upsertTransactionOverride(
   })
 }
 
+export async function revertTransactionEdits(
+  transactionId: string,
+  fields: RevertableTransactionEditField[] = [...REVERTABLE_TRANSACTION_EDIT_FIELDS],
+): Promise<void> {
+  const existing = await db.transactionOverrides.get(transactionId)
+  if (!existing) {
+    await db.transactionsNormalized.update(transactionId, { hasManualOverride: false })
+    return
+  }
+
+  const next: TransactionOverride = {
+    ...existing,
+    updatedAt: new Date().toISOString(),
+  }
+  fields.forEach((field) => {
+    delete (next as Partial<TransactionOverride>)[field]
+  })
+
+  const hasAnyOverride =
+    next.merchantOverride !== undefined ||
+    next.categoryOverrideId !== undefined ||
+    (typeof next.notes === 'string' && next.notes.trim().length > 0) ||
+    next.splitDefinition !== undefined ||
+    next.isExcludedFromAnalytics !== undefined ||
+    next.isReimbursable !== undefined ||
+    next.isBusiness !== undefined
+
+  if (hasAnyOverride) {
+    await db.transactionOverrides.put(next)
+  } else {
+    await db.transactionOverrides.delete(transactionId)
+  }
+
+  const hasManualEditsLeft =
+    next.merchantOverride !== undefined ||
+    next.categoryOverrideId !== undefined ||
+    (typeof next.notes === 'string' && next.notes.trim().length > 0) ||
+    next.splitDefinition !== undefined
+  await db.transactionsNormalized.update(transactionId, { hasManualOverride: hasManualEditsLeft })
+}
+
 export async function setTransactionTags(transactionId: string, tagIds: string[]): Promise<void> {
   await db.transaction('rw', db.transactionTags, async () => {
     await db.transactionTags.where('transactionId').equals(transactionId).delete()
@@ -333,7 +384,224 @@ export async function upsertCategoryName(categoryId: string, name: string): Prom
 }
 
 export async function upsertRule(rule: Rule): Promise<void> {
-  await db.rules.put(rule)
+  let nextRule = rule
+  if (rule.actions.some((action) => action.type === 'setCategory')) {
+    const categories = await db.categories.toArray()
+    const categoryIds = new Set(categories.map((category) => category.categoryId))
+    const categoryIdByName = new Map(
+      categories.map((category) => [category.name.trim().toLowerCase(), category.categoryId]),
+    )
+    nextRule = {
+      ...rule,
+      actions: resolveRuleActions(rule.actions, categoryIds, categoryIdByName),
+    }
+  }
+  await db.rules.put(nextRule)
+}
+
+function readString(rawData: Record<string, string | number | null>, key: string): string {
+  const value = rawData[key]
+  if (typeof value === 'string') return value
+  if (typeof value === 'number') return String(value)
+  return ''
+}
+
+function readNumber(rawData: Record<string, string | number | null>, key: string): number {
+  const value = rawData[key]
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+function parseRawTransactionRow(rawData: Record<string, string | number | null>): ParsedTransactionRow {
+  const postDateRaw = readString(rawData, 'postDate')
+  return {
+    rowIndex: readNumber(rawData, 'rowIndex'),
+    transactionDate: readString(rawData, 'transactionDate'),
+    postDate: postDateRaw || undefined,
+    descriptionRaw: readString(rawData, 'descriptionRaw'),
+    cardMember: readString(rawData, 'cardMember'),
+    accountLastDigits: readString(rawData, 'accountLastDigits'),
+    amount: readNumber(rawData, 'amount'),
+    merchantRaw: readString(rawData, 'merchantRaw'),
+    extendedDetails: readString(rawData, 'extendedDetails'),
+    statementDescriptor: readString(rawData, 'statementDescriptor'),
+    address: readString(rawData, 'address'),
+    city: readString(rawData, 'city'),
+    state: readString(rawData, 'state'),
+    zip: readString(rawData, 'zip'),
+    country: readString(rawData, 'country'),
+    reference: readString(rawData, 'reference'),
+    amexCategoryRaw: readString(rawData, 'amexCategoryRaw'),
+  }
+}
+
+export interface RerunRulesSummary {
+  processed: number
+  matched: number
+}
+
+export async function rerunRulesOnExistingTransactions(): Promise<RerunRulesSummary> {
+  const [rules, categories, aliases, merchantMappings, tags, transactions, raws, statements, overrides, links] =
+    await Promise.all([
+      db.rules.toArray(),
+      db.categories.toArray(),
+      db.categoryAliases.toArray(),
+      db.merchantMappings.toArray(),
+      db.tags.toArray(),
+      db.transactionsNormalized.toArray(),
+      db.transactionsRaw.toArray(),
+      db.statements.toArray(),
+      db.transactionOverrides.toArray(),
+      db.transactionTags.toArray(),
+    ])
+
+  const enabledRules = rules.filter((rule) => rule.enabled).sort((a, b) => a.priority - b.priority)
+  const categoryIds = new Set(categories.map((category) => category.categoryId))
+  const categoryIdByName = new Map(
+    categories.map((category) => [category.name.trim().toLowerCase(), category.categoryId]),
+  )
+  const merchantMap = new Map<string, string>()
+  merchantMappings.forEach((mapping) => {
+    merchantMap.set(mapping.merchantRaw.toLowerCase(), mapping.merchantNormalized)
+    merchantMap.set(mapping.merchantNormalized.toLowerCase(), mapping.merchantNormalized)
+  })
+  const tagIdByName = new Map(tags.map((tag) => [tag.name.toLowerCase(), tag.tagId]))
+  const rawByFingerprint = new Map(raws.map((raw) => [raw.sourceRowFingerprint, raw]))
+  const statementById = new Map(statements.map((statement) => [statement.statementId, statement]))
+  const overrideById = new Map(overrides.map((override) => [override.transactionId, override]))
+  const tagIdsByTransactionId = new Map<string, Set<string>>()
+  links.forEach((link) => {
+    const existing = tagIdsByTransactionId.get(link.transactionId) ?? new Set<string>()
+    existing.add(link.tagId)
+    tagIdsByTransactionId.set(link.transactionId, existing)
+  })
+
+  const updatedAt = new Date().toISOString()
+  let matched = 0
+
+  for (const existing of transactions) {
+      let baseline = {
+        ...existing,
+        hasRuleOverride: false,
+        appliedRuleIds: [] as string[],
+      }
+
+      const raw = rawByFingerprint.get(existing.sourceRowFingerprint)
+      const statement = raw ? statementById.get(raw.statementId) : undefined
+      if (raw && statement) {
+        const rebuilt = await normalizeTransaction({
+          statementId: statement.statementId,
+          importBatchId: raw.importBatchId,
+          statementStartDate: statement.statementStartDate,
+          statementEndDate: statement.statementEndDate,
+          categoryAliases: aliases,
+          row: parseRawTransactionRow(raw.rawData),
+        })
+        const merchantOverride =
+          merchantMap.get(rebuilt.merchantRaw.toLowerCase()) ??
+          merchantMap.get(rebuilt.merchantNormalized.toLowerCase())
+        if (merchantOverride) {
+          rebuilt.merchantNormalized = merchantOverride
+        }
+        baseline = {
+          ...rebuilt,
+          transactionId: existing.transactionId,
+          sourceRowFingerprint: existing.sourceRowFingerprint,
+          hasManualOverride: existing.hasManualOverride,
+          merchantFirstSeenAt: existing.merchantFirstSeenAt ?? rebuilt.merchantFirstSeenAt,
+          hasRuleOverride: false,
+          appliedRuleIds: [],
+        }
+      }
+
+      let ruled = baseline
+      const appliedRuleIds: string[] = []
+      const ruleFlags: Pick<
+        TransactionOverride,
+        'isBusiness' | 'isReimbursable' | 'isExcludedFromAnalytics'
+      > = {}
+      const tagsToAdd = new Set<string>()
+
+      enabledRules.forEach((rule) => {
+        if (!transactionMatchesRule(ruled, rule)) return
+        appliedRuleIds.push(rule.ruleId)
+        const resolvedActions = resolveRuleActions(rule.actions, categoryIds, categoryIdByName)
+        const result = applyRuleActions(ruled, resolvedActions)
+        ruled = result.transaction
+        if (result.isBusiness !== undefined) ruleFlags.isBusiness = result.isBusiness
+        if (result.isReimbursable !== undefined) ruleFlags.isReimbursable = result.isReimbursable
+        if (result.isExcludedFromAnalytics !== undefined) {
+          ruleFlags.isExcludedFromAnalytics = result.isExcludedFromAnalytics
+        }
+        result.tagsToAdd.forEach((tagToken) => {
+          tagsToAdd.add(tagIdByName.get(tagToken.toLowerCase()) ?? tagToken)
+        })
+      })
+
+      if (appliedRuleIds.length > 0) {
+        matched += 1
+      }
+
+      ruled.appliedRuleIds = appliedRuleIds
+      ruled.hasRuleOverride = appliedRuleIds.length > 0
+      ruled.hasManualOverride = existing.hasManualOverride
+      await db.transactionsNormalized.put(ruled)
+
+      const existingOverride = overrideById.get(existing.transactionId)
+      const shouldPreserveManualFlags = existing.hasManualOverride
+      const nextOverride: TransactionOverride = {
+        transactionId: existing.transactionId,
+        updatedAt,
+        merchantOverride: existingOverride?.merchantOverride,
+        categoryOverrideId: existingOverride?.categoryOverrideId,
+        notes: existingOverride?.notes,
+        splitDefinition: existingOverride?.splitDefinition,
+        isBusiness: shouldPreserveManualFlags ? existingOverride?.isBusiness : ruleFlags.isBusiness,
+        isReimbursable: shouldPreserveManualFlags
+          ? existingOverride?.isReimbursable
+          : ruleFlags.isReimbursable,
+        isExcludedFromAnalytics: shouldPreserveManualFlags
+          ? existingOverride?.isExcludedFromAnalytics
+          : ruleFlags.isExcludedFromAnalytics,
+      }
+      const hasManualContent =
+        nextOverride.merchantOverride !== undefined ||
+        nextOverride.categoryOverrideId !== undefined ||
+        nextOverride.notes !== undefined ||
+        nextOverride.splitDefinition !== undefined
+      const hasFlags =
+        nextOverride.isBusiness !== undefined ||
+        nextOverride.isReimbursable !== undefined ||
+        nextOverride.isExcludedFromAnalytics !== undefined
+      if (appliedRuleIds.length > 0 || hasManualContent || hasFlags) {
+        await db.transactionOverrides.put(nextOverride)
+      } else if (existingOverride) {
+        await db.transactionOverrides.delete(existing.transactionId)
+      }
+
+      const existingTagIds = tagIdsByTransactionId.get(existing.transactionId) ?? new Set<string>()
+      const newLinks = [...tagsToAdd]
+        .filter((tagId) => !existingTagIds.has(tagId))
+        .map((tagId) => ({
+          id: randomId('tt'),
+          transactionId: existing.transactionId,
+          tagId,
+        }))
+      if (newLinks.length > 0) {
+        await db.transactionTags.bulkPut(newLinks)
+        newLinks.forEach((link) => existingTagIds.add(link.tagId))
+        tagIdsByTransactionId.set(existing.transactionId, existingTagIds)
+      }
+    }
+
+  return {
+    processed: transactions.length,
+    matched,
+  }
 }
 
 export async function createTag(name: string, colorToken: string): Promise<void> {
