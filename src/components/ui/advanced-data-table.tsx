@@ -15,7 +15,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, ArrowUpDown, Columns3, Filter, RotateCcw, Save } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Columns3, Filter, RotateCcw, Save, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -546,6 +546,7 @@ export function AdvancedDataTable<TData extends object>({
   const [visibleCount, setVisibleCount] = useState(pageSize)
   const [showSettings, setShowSettings] = useState(false)
   const [viewFeedback, setViewFeedback] = useState<string>('')
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [savedSignature, setSavedSignature] = useState<string>(() =>
     createViewSignature(clonePersistedView(initialView)),
   )
@@ -711,6 +712,9 @@ export function AdvancedDataTable<TData extends object>({
     setColumnOrder(next.columnOrder)
     setColumnSizing(next.columnSizing)
     setGlobalFilter(next.globalFilter)
+    if (searchInputRef.current) {
+      searchInputRef.current.value = next.globalFilter
+    }
     setExcelFilters(next.excelFilters)
     setFilterModeEnabled(next.filterModeEnabled)
     setActiveFilterColumnId(null)
@@ -723,6 +727,12 @@ export function AdvancedDataTable<TData extends object>({
     }
     setSavedSignature(createViewSignature(next))
     setViewFeedback('View reset to default')
+  }
+
+  const applyGlobalSearch = () => {
+    const nextFilter = searchInputRef.current?.value ?? ''
+    if (nextFilter === globalFilter) return
+    setGlobalFilter(nextFilter)
   }
 
   const leafColumns = table.getAllLeafColumns()
@@ -830,11 +840,20 @@ export function AdvancedDataTable<TData extends object>({
     <div className={cn('space-y-3', className)}>
       <div className="flex flex-wrap items-center gap-2">
         <Input
+          ref={searchInputRef}
           className="min-w-[260px] flex-1"
           placeholder="Search all columns..."
-          value={globalFilter}
-          onChange={(event) => setGlobalFilter(event.target.value)}
+          defaultValue={globalFilter}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return
+            event.preventDefault()
+            applyGlobalSearch()
+          }}
         />
+        <Button type="button" size="sm" onClick={applyGlobalSearch}>
+          <Search className="mr-2 h-4 w-4" />
+          Search
+        </Button>
         <Button
           type="button"
           variant={filterModeEnabled ? 'default' : 'secondary'}
