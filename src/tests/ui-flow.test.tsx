@@ -128,7 +128,7 @@ describe('ui flows', () => {
     expect(screen.getByText('STARBUCKS 001')).toBeInTheDocument()
 
     const user = userEvent.setup()
-    await user.type(screen.getByPlaceholderText('Search all columns...'), 'nonexistent')
+    await user.type(screen.getByPlaceholderText('Search all columns...'), 'nonexistent{enter}')
 
     expect(screen.queryByText('STARBUCKS 001')).not.toBeInTheDocument()
   })

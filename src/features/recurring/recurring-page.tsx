@@ -55,6 +55,7 @@ export function RecurringPage() {
   const workspace = useWorkspace()
   const scopedTransactions = useScopedTransactions(workspace.transactions, workspace.statements)
   const [query, setQuery] = useState('')
+  const [queryDraft, setQueryDraft] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [cardHolderFilter, setCardHolderFilter] = useState('all')
   const [cadenceFilter, setCadenceFilter] = useState<'all' | RecurringCadence>('all')
@@ -197,6 +198,11 @@ export function RecurringPage() {
     } finally {
       setPendingCategoryOverrideMerchant(null)
     }
+  }
+
+  const applySearchQuery = () => {
+    if (queryDraft === query) return
+    setQuery(queryDraft)
   }
 
   const recurringColumns = useMemo<ColumnDef<RecurringCandidateWithDecision, unknown>[]>(
@@ -367,7 +373,21 @@ export function RecurringPage() {
           <CardTitle>Recurring filters</CardTitle>
           <CardDescription>Focus the list by cadence, category, status, confidence, and monthly impact.</CardDescription>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <Input placeholder="Search merchant..." value={query} onChange={(event) => setQuery(event.target.value)} />
+            <div className="flex gap-2 sm:col-span-2">
+              <Input
+                placeholder="Search merchant..."
+                value={queryDraft}
+                onChange={(event) => setQueryDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return
+                  event.preventDefault()
+                  applySearchQuery()
+                }}
+              />
+              <Button type="button" onClick={applySearchQuery} disabled={queryDraft === query}>
+                Search
+              </Button>
+            </div>
             <Select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
               {categories.map((category) => (
                 <option key={category} value={category}>
